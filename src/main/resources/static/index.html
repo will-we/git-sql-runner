@@ -9,55 +9,101 @@
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
 </head>
-<body class="bg-gray-50">
-  <div class="max-w-6xl mx-auto py-8">
-    <h1 class="text-2xl font-bold mb-4">SQL 文件列表</h1>
-    <div id="statusBar" class="hidden mb-4 p-2 rounded text-sm"></div>
-    <div class="flex items-center space-x-2 mb-4">
-      <button id="syncBtn" class="px-3 py-1 bg-blue-600 text-white rounded">同步本地 sql/ 目录</button>
-      <select id="filterExec" class="border rounded px-2 py-1">
-        <option value="">全部</option>
-        <option value="0">未执行</option>
-        <option value="1">已执行</option>
-      </select>
+<body class="bg-gray-100">
+  <aside class="fixed left-0 top-0 h-screen w-56 bg-white border-r border-gray-200">
+    <div class="h-16 px-5 flex items-center border-b border-gray-200">
+      <div class="text-xl font-bold">Git SQL Runner</div>
     </div>
-    <table class="min-w-full bg-white shadow rounded">
-      <thead>
-        <tr class="bg-gray-100 text-left">
-          <th class="p-2">ID</th>
-          <th class="p-2">文件名</th>
-          <th class="p-2">状态</th>
-          <th class="p-2">操作</th>
-        </tr>
-      </thead>
-      <tbody id="fileBody"></tbody>
-    </table>
+    <nav class="p-4 space-y-2">
+      <button class="nav-item w-full text-left px-3 py-2 rounded bg-blue-600 text-white" data-view="files">SQL 历史</button>
+      <button class="nav-item w-full text-left px-3 py-2 rounded hover:bg-gray-100" data-view="records">执行记录</button>
+      <button class="nav-item w-full text-left px-3 py-2 rounded hover:bg-gray-100" data-view="jobs">调度任务</button>
+    </nav>
+  </aside>
 
-    <h2 class="text-xl font-semibold mt-8 mb-2">执行记录</h2>
-    <div class="mb-2">
-      <select id="filterStatus" class="border rounded px-2 py-1">
-        <option value="">全部</option>
-        <option value="RUNNING">RUNNING</option>
-        <option value="SUCCESS">SUCCESS</option>
-        <option value="FAILED">FAILED</option>
-      </select>
+  <main class="ml-56 min-h-screen">
+    <header class="h-16 px-6 flex items-center bg-white border-b border-gray-200">
+      <h1 id="pageTitle" class="text-xl font-semibold">SQL 历史</h1>
+    </header>
+    <div class="p-6">
+      <div id="statusBar" class="hidden mb-4 p-2 rounded text-sm"></div>
+
+      <section id="view-files" class="view-pane">
+        <div class="flex items-center space-x-2 mb-4">
+          <button id="syncBtn" class="px-3 py-1 bg-blue-600 text-white rounded">同步本地 sql/ 目录</button>
+          <button id="reloadTreeBtn" class="px-3 py-1 bg-gray-700 text-white rounded">刷新目录树</button>
+          <button id="showAllBtn" class="px-3 py-1 bg-white border border-gray-300 text-gray-700 rounded">展示全部</button>
+          <input id="baseDirInput" class="border rounded px-2 py-1 bg-white w-56" placeholder="baseDir，默认值加载中">
+          <input id="sqlDirInput" class="border rounded px-2 py-1 bg-white w-40" placeholder="sqlDir，默认值加载中">
+          <button id="applyDirBtn" class="px-3 py-1 bg-white border border-gray-300 text-gray-700 rounded">应用目录</button>
+          <select id="filterExec" class="border rounded px-2 py-1 bg-white">
+            <option value="">全部</option>
+            <option value="0">未执行</option>
+            <option value="1">已执行</option>
+          </select>
+        </div>
+        <div class="flex gap-4">
+          <aside class="w-72 bg-white shadow rounded p-3">
+            <div class="font-semibold mb-2">SQL 目录</div>
+            <div id="sqlTreeEmpty" class="text-xs text-gray-400">加载中...</div>
+            <ul id="sqlTree" class="text-sm space-y-1"></ul>
+          </aside>
+          <div class="flex-1">
+            <div class="overflow-auto bg-white shadow rounded">
+            <table class="min-w-full">
+              <thead>
+              <tr class="bg-gray-100 text-left">
+                <th class="p-2">ID</th>
+                <th class="p-2">文件名</th>
+                <th class="p-2">checksum</th>
+                <th class="p-2">commit</th>
+                <th class="p-2">状态</th>
+                <th class="p-2">操作</th>
+              </tr>
+              </thead>
+              <tbody id="fileBody"></tbody>
+            </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="view-records" class="view-pane hidden">
+        <div class="mb-2">
+          <select id="filterStatus" class="border rounded px-2 py-1 bg-white">
+            <option value="">全部</option>
+            <option value="RUNNING">RUNNING</option>
+            <option value="SUCCESS">SUCCESS</option>
+            <option value="FAILED">FAILED</option>
+          </select>
+        </div>
+        <table class="min-w-full bg-white shadow rounded">
+          <thead>
+          <tr class="bg-gray-100 text-left">
+            <th class="p-2">ID</th>
+            <th class="p-2">SQL 文件</th>
+            <th class="p-2">状态</th>
+            <th class="p-2">开始时间</th>
+            <th class="p-2">耗时</th>
+            <th class="p-2">失败原因</th>
+            <th class="p-2">来源</th>
+          </tr>
+          </thead>
+          <tbody id="recordBody"></tbody>
+        </table>
+      </section>
+
+      <section id="view-jobs" class="view-pane hidden">
+        <div class="bg-white rounded shadow p-5">
+          <div class="text-lg font-semibold mb-2">调度任务</div>
+          <div class="text-sm text-gray-600 mb-4">当前已启用定时索引任务：每 5 分钟扫描本地 sql/ 目录。</div>
+          <button id="syncBtn2" class="px-3 py-1 bg-blue-600 text-white rounded">立即执行一次同步</button>
+        </div>
+      </section>
     </div>
-    <table class="min-w-full bg-white shadow rounded">
-      <thead>
-      <tr class="bg-gray-100 text-left">
-        <th class="p-2">ID</th>
-        <th class="p-2">SQL文件ID</th>
-        <th class="p-2">状态</th>
-        <th class="p-2">开始/结束</th>
-        <th class="p-2">错误</th>
-        <th class="p-2">来源</th>
-      </tr>
-      </thead>
-      <tbody id="recordBody"></tbody>
-    </table>
-  </div>
+  </main>
 
-  <div id="previewModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center p-4">
+  <div id="previewModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center p-4 z-50">
     <div class="bg-white rounded shadow max-w-3xl w-full">
       <div class="px-4 py-3 border-b flex items-center justify-between">
         <div>
@@ -68,12 +114,18 @@
       </div>
       <div class="p-4">
         <pre class="max-h-96 overflow-auto"><code id="modalCode" class="language-sql"></code></pre>
+        <div id="syntaxHint" class="mt-3 text-sm"></div>
+        <div id="syntaxTooltip" class="hidden fixed z-50 max-w-xl bg-white border border-red-200 shadow px-3 py-2 text-sm text-red-700 rounded"></div>
         <div class="mt-3 flex items-center space-x-2">
           <label for="txMode" class="text-sm text-gray-600">事务模式</label>
           <select id="txMode" class="border rounded px-2 py-1">
             <option value="FILE">整文件事务</option>
             <option value="STATEMENT">逐语句提交</option>
           </select>
+          <label class="ml-3 text-sm text-gray-600 inline-flex items-center">
+            <input id="lineNoToggle" type="checkbox" class="mr-1" checked>
+            显示行号
+          </label>
         </div>
       </div>
       <div class="px-4 py-3 border-t flex justify-end space-x-2">
@@ -98,15 +150,264 @@
       const msg = (jq.responseJSON && jq.responseJSON.message) ? jq.responseJSON.message : (jq.status + ' ' + jq.statusText);
       setStatus((ctx || '请求失败') + '：' + msg, 'err');
     }
+    function statusView(rawStatus, executed) {
+      if (rawStatus === 'RUNNING') return { text: '执行中', cls: 'text-yellow-600' };
+      if (rawStatus === 'FAILED') return { text: '失败', cls: 'text-red-600' };
+      if (rawStatus === 'SUCCESS' || executed === true) return { text: '已执行', cls: 'text-green-600' };
+      return { text: '未执行', cls: 'text-gray-500' };
+    }
+    function shortText(v, len) {
+      if (!v) return '-';
+      if (v.length <= len) return v;
+      return v.substring(0, len) + '...';
+    }
+    function escapeHtml(v) {
+      if (v == null) return '';
+      return String(v)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+    function formatTime(v) {
+      if (!v) return '-';
+      var d = new Date(v);
+      if (isNaN(d.getTime())) return v;
+      return d.getFullYear() + '年'
+        + String(d.getMonth() + 1).padStart(2, '0') + '月'
+        + String(d.getDate()).padStart(2, '0') + '日 '
+        + String(d.getHours()).padStart(2, '0') + ':'
+        + String(d.getMinutes()).padStart(2, '0') + ':'
+        + String(d.getSeconds()).padStart(2, '0');
+    }
+    function durationText(startTime, endTime) {
+      if (!startTime || !endTime) return '-';
+      var s = new Date(startTime).getTime();
+      var e = new Date(endTime).getTime();
+      if (isNaN(s) || isNaN(e) || e < s) return '-';
+      var ms = e - s;
+      if (ms < 1000) return ms + 'ms';
+      var sec = Math.floor(ms / 1000);
+      if (sec < 60) return sec + 's';
+      var min = Math.floor(sec / 60);
+      var remain = sec % 60;
+      return min + 'm ' + remain + 's';
+    }
+    function sourceBadge(v) {
+      if (v === 'MANUAL') return '<span class="px-2 py-1 rounded text-xs bg-blue-100 text-blue-700">MANUAL</span>';
+      if (v === 'SCHEDULE') return '<span class="px-2 py-1 rounded text-xs bg-purple-100 text-purple-700">SCHEDULE</span>';
+      return '<span class="px-2 py-1 rounded text-xs bg-gray-100 text-gray-600">' + (v || '-') + '</span>';
+    }
+    function errorCell(msg, rowId) {
+      if (!msg) return '<span class="text-gray-400">-</span>';
+      var txt = String(msg);
+      var shortMsg = shortText(txt, 80);
+      var escapedShort = escapeHtml(shortMsg);
+      var escapedFull = escapeHtml(txt);
+      return '<div class="max-w-xl">'
+        + '<div class="text-red-600 break-words">' + escapedShort + '</div>'
+        + '<button class="errToggle text-xs text-blue-600 hover:underline mt-1" data-id="' + rowId + '">查看详情</button>'
+        + '<div id="err-full-' + rowId + '" class="hidden mt-2 p-2 bg-red-50 border border-red-100 rounded text-red-700 text-xs whitespace-pre-wrap break-words">' + escapedFull + '</div>'
+      + '</div>';
+    }
+    function renderSyntaxHint(check) {
+      if (!check) {
+        $('#syntaxHint').html('<div class="p-2 rounded bg-yellow-50 text-yellow-700">未获取到语法检查结果</div>');
+        return;
+      }
+      if (check.ok) {
+        $('#syntaxHint').html('<div class="p-2 rounded bg-green-50 text-green-700">语法检查通过（共 ' + (check.statementCount || 0) + ' 条语句）</div>');
+        return;
+      }
+      var issues = check.issues || [];
+      var items = [];
+      for (var i = 0; i < issues.length && i < 3; i++) {
+        var it = issues[i];
+        items.push('<li class="mb-1">第 ' + escapeHtml(it.index) + ' 条：' + escapeHtml(it.message || '') + '<div class="text-xs text-red-500 mt-1 font-mono">' + escapeHtml(it.sql || '') + '</div></li>');
+      }
+      var more = issues.length > 3 ? '<div class="text-xs mt-1">其余 ' + (issues.length - 3) + ' 条请修复后重试</div>' : '';
+      $('#syntaxHint').html(
+        '<div class="p-2 rounded bg-red-50 text-red-700">'
+        + '<div class="font-semibold mb-1">发现语法问题（' + issues.length + '）</div>'
+        + '<ul class="list-disc pl-5">' + items.join('') + '</ul>'
+        + more
+        + '</div>'
+      );
+    }
+    function splitSqlWithRange(sql) {
+      var res = [];
+      var inSingle = false, inDouble = false;
+      var start = 0;
+      for (var i = 0; i < sql.length; i++) {
+        var c = sql.charAt(i);
+        if (c === '\'' && !inDouble) inSingle = !inSingle;
+        if (c === '"' && !inSingle) inDouble = !inDouble;
+        if (c === ';' && !inSingle && !inDouble) {
+          res.push({ text: sql.substring(start, i), start: start, end: i });
+          start = i + 1;
+        }
+      }
+      if (start < sql.length) {
+        res.push({ text: sql.substring(start), start: start, end: sql.length });
+      }
+      return res;
+    }
+    function buildErrorRanges(content, check) {
+      if (!check || !check.issues || !check.issues.length) return [];
+      var parts = splitSqlWithRange(content || '');
+      var ranges = [];
+      for (var i = 0; i < check.issues.length; i++) {
+        var issue = check.issues[i];
+        var idx = Number(issue.index || 0) - 1;
+        if (idx < 0 || idx >= parts.length) continue;
+        var part = parts[idx];
+        var token = issue.token;
+        var localStart = 0;
+        var localEnd = Math.min(part.text.length, 20);
+        if (token) {
+          var pos = part.text.indexOf(token);
+          if (pos >= 0) {
+            localStart = pos;
+            localEnd = pos + token.length;
+          }
+        }
+        if (localEnd <= localStart) continue;
+        ranges.push({
+          start: part.start + localStart,
+          end: part.start + localEnd,
+          message: issue.message || 'SQL 语法错误'
+        });
+      }
+      ranges.sort(function(a, b){ return a.start - b.start; });
+      var merged = [];
+      var lastEnd = -1;
+      for (var j = 0; j < ranges.length; j++) {
+        var r = ranges[j];
+        if (r.start < lastEnd) continue;
+        merged.push(r);
+        lastEnd = r.end;
+      }
+      return merged;
+    }
+    function withLineNumbers(codeHtml) {
+      var lines = codeHtml.split('\n');
+      var rows = [];
+      for (var i = 0; i < lines.length; i++) {
+        var line = lines[i];
+        if (line.length === 0) line = '&nbsp;';
+        rows.push('<div class="flex"><span class="w-10 pr-3 text-right text-gray-400 select-none border-r border-gray-200 mr-3">' + (i + 1) + '</span><span class="flex-1 whitespace-pre">' + line + '</span></div>');
+      }
+      return rows.join('');
+    }
+    function renderSqlPreview(content, check) {
+      var text = content || '';
+      var ranges = buildErrorRanges(text, check);
+      var out = [];
+      var pos = 0;
+      if (!ranges.length) {
+        out.push(escapeHtml(text));
+      } else {
+        for (var i = 0; i < ranges.length; i++) {
+          var r = ranges[i];
+          if (r.start > pos) out.push(escapeHtml(text.substring(pos, r.start)));
+          out.push('<span class="sql-err-token cursor-help" data-msg="' + escapeHtml(r.message) + '" style="text-decoration-line: underline; text-decoration-style: wavy; text-decoration-color: #dc2626; text-underline-offset: 2px;">' + escapeHtml(text.substring(r.start, r.end)) + '</span>');
+          pos = r.end;
+        }
+        if (pos < text.length) out.push(escapeHtml(text.substring(pos)));
+      }
+      var html = out.join('');
+      if ($('#lineNoToggle').prop('checked')) {
+        html = withLineNumbers(html);
+      }
+      document.getElementById('modalCode').innerHTML = html;
+    }
+    var sqlFileMap = {};
+    var focusSqlId = null;
+    var selectedTreeFileId = null;
+    var selectedTreePath = null;
+    var treeExpandedMap = {};
+    var defaultBaseDir = '.';
+    var defaultSqlDir = 'sql';
+    var currentBaseDir = defaultBaseDir;
+    var currentSqlDir = defaultSqlDir;
+    function applySyncDirDefaults(baseDir, sqlDir) {
+      defaultBaseDir = (baseDir || '.').trim() || '.';
+      defaultSqlDir = (sqlDir || 'sql').trim() || 'sql';
+      currentBaseDir = defaultBaseDir;
+      currentSqlDir = defaultSqlDir;
+      $('#baseDirInput').val(currentBaseDir).attr('placeholder', 'baseDir，默认 ' + defaultBaseDir);
+      $('#sqlDirInput').val(currentSqlDir).attr('placeholder', 'sqlDir，默认 ' + defaultSqlDir);
+    }
+    function loadSyncDirDefaults() {
+      return $.get('/api/settings/sync-dir', function(cfg) {
+        applySyncDirDefaults(cfg && cfg.baseDir, cfg && cfg.sqlDir);
+      }).fail(function() {
+        applySyncDirDefaults(defaultBaseDir, defaultSqlDir);
+      });
+    }
+    function activeDirParams() {
+      return '?baseDir=' + encodeURIComponent(currentBaseDir) + '&sqlDir=' + encodeURIComponent(currentSqlDir);
+    }
+    function isTreeExpanded(path) {
+      if (treeExpandedMap[path] === undefined) {
+        treeExpandedMap[path] = true;
+      }
+      return treeExpandedMap[path];
+    }
+    function treeNodeHtml(node, level) {
+      var pad = level * 12;
+      if (node.type === 'dir') {
+        var children = node.children || [];
+        var expanded = isTreeExpanded(node.path);
+        var icon = expanded ? '▼' : '▶';
+        var childHtml = children.map(function(c){ return treeNodeHtml(c, level + 1); }).join('');
+        return '<li>'
+          + '<button class="tree-dir-toggle w-full text-left text-gray-700 font-medium hover:bg-gray-100 rounded px-1 py-0.5" style="padding-left:' + pad + 'px" data-path="' + escapeHtml(node.path) + '">' + icon + ' 📁 ' + escapeHtml(node.name) + '</button>'
+          + (childHtml ? ('<ul class="space-y-1 mt-1 ' + (expanded ? '' : 'hidden') + '">' + childHtml + '</ul>') : '')
+          + '</li>';
+      }
+      var cls = selectedTreePath === node.path ? 'bg-blue-50 text-blue-700 border-blue-200' : 'hover:bg-gray-100 border-transparent';
+      var statusDot = node.status === 'SUCCESS' ? '<span class="text-green-600">●</span>' : (node.status === 'FAILED' ? '<span class="text-red-600">●</span>' : '<span class="text-gray-400">●</span>');
+      return '<li>'
+        + '<button class="tree-file w-full text-left px-2 py-1 rounded border ' + cls + '" style="padding-left:' + pad + 'px" data-id="' + (node.id || '') + '" data-path="' + escapeHtml(node.path) + '">'
+        + statusDot + ' <span class="font-mono">' + escapeHtml(node.name) + '</span>'
+        + '</button>'
+      + '</li>';
+    }
+    function loadSqlTree() {
+      $.get('/api/files/tree' + activeDirParams(), function(root){
+        var children = (root && root.children) ? root.children : [];
+        if (!children.length) {
+          $('#sqlTree').html('');
+          $('#sqlTreeEmpty').removeClass('hidden').text('目录为空或未找到：' + currentBaseDir + '/' + currentSqlDir);
+          return;
+        }
+        $('#sqlTreeEmpty').addClass('hidden');
+        var html = children.map(function(n){ return treeNodeHtml(n, 0); }).join('');
+        $('#sqlTree').html(html);
+      }).fail(function(jq){ handleAjaxFail(jq, '加载 SQL 目录树失败'); });
+    }
     function loadFiles() {
       const v = $('#filterExec').val();
       const param = v==='' ? '' : ('?executed=' + (v==='1'?'true':'false'));
       $.get('/api/files' + param, function(data) {
+        if (selectedTreeFileId != null) {
+          data = data.filter(function(f){ return Number(f.id) === Number(selectedTreeFileId); });
+        } else if (selectedTreePath) {
+          data = data.filter(function(f){ return f.filePath === selectedTreePath; });
+        }
+        sqlFileMap = {};
+        data.forEach(function(f){ sqlFileMap[f.id] = f; });
         const rows = data.map(function(f){
-          return '<tr class="border-t">'
+          var sv = statusView(f.lastStatus, f.executed);
+          var focusCls = (focusSqlId != null && Number(f.id) === Number(focusSqlId)) ? ' bg-yellow-50' : '';
+          return '<tr class="border-t' + focusCls + '" data-sql-id="' + f.id + '">'
             + '<td class="p-2">' + f.id + '</td>'
             + '<td class="p-2"><span class="font-mono">' + f.fileName + '</span><div class="text-gray-400 text-xs">' + (f.filePath||'') + '</div></td>'
-            + '<td class="p-2">' + f.lastStatus + '</td>'
+            + '<td class="p-2 font-mono text-xs text-gray-600 break-all" title="' + escapeHtml(f.checksum || '-') + '">' + escapeHtml(f.checksum || '-') + '</td>'
+            + '<td class="p-2 font-mono text-xs text-gray-600 break-all" title="' + escapeHtml(f.gitCommitId || '-') + '">' + escapeHtml(f.gitCommitId || '-') + '</td>'
+            + '<td class="p-2 font-semibold ' + sv.cls + '">' + sv.text + '</td>'
             + '<td class="p-2">'
               + '<button class="px-2 py-1 bg-green-600 text-white rounded execBtn" data-id="' + f.id + '">执行</button>'
               + '<button class="px-2 py-1 bg-gray-700 text-white rounded ml-1 previewBtn" data-id="' + f.id + '">预览</button>'
@@ -114,52 +415,155 @@
           + '</tr>';
         });
         $('#fileBody').html(rows.join(''));
-        setStatus('', 'ok');
+        if (focusSqlId != null) {
+          var target = $('#fileBody').find('tr[data-sql-id="' + focusSqlId + '"]');
+          if (target.length) {
+            target[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
+            setStatus('已定位到 SQL 历史（sqlId=' + focusSqlId + '）', 'ok');
+            focusSqlId = null;
+          } else {
+            setStatus('未找到对应 SQL 历史记录（sqlId=' + focusSqlId + '）', 'warn');
+            focusSqlId = null;
+          }
+        } else {
+          setStatus('', 'ok');
+        }
       }).fail(function(jq){ handleAjaxFail(jq,'加载文件列表失败'); });
     }
     function loadRecords() {
       const v = $('#filterStatus').val();
       const param = v==='' ? '' : ('?status='+v);
-      $.get('/api/records'+param, function(data) {
+      $.get('/api/records/view'+param, function(data) {
         const rows = data.map(function(r){
+          var sv = statusView(r.status, null);
           return '<tr class="border-t">'
             + '<td class="p-2">' + r.id + '</td>'
-            + '<td class="p-2">' + r.sqlFileId + '</td>'
-            + '<td class="p-2">' + r.status + '</td>'
-            + '<td class="p-2"><div>' + r.startTime + '</div><div class="text-xs text-gray-500">' + (r.endTime||'') + '</div></td>'
-            + '<td class="p-2 text-red-600">' + (r.errorMessage||'') + '</td>'
-            + '<td class="p-2">' + r.executedBy + '</td>'
+            + '<td class="p-2"><div class="font-medium">' + (r.sqlFileName || '-') + '</div><div class="mt-1"><button class="locateSqlBtn text-xs px-2 py-0.5 rounded bg-blue-50 text-blue-700 hover:bg-blue-100" data-sql-id="' + r.sqlFileId + '">sqlId:' + r.sqlFileId + '</button></div></td>'
+            + '<td class="p-2 font-semibold ' + sv.cls + '">' + sv.text + '</td>'
+            + '<td class="p-2">' + formatTime(r.startTime) + '</td>'
+            + '<td class="p-2">' + (r.durationMs == null ? durationText(r.startTime, r.endTime) : (r.durationMs + 'ms')) + '</td>'
+            + '<td class="p-2 align-top">' + errorCell(r.errorMessage, r.id) + '</td>'
+            + '<td class="p-2">' + sourceBadge(r.executedBy) + '</td>'
           + '</tr>';
         });
         $('#recordBody').html(rows.join(''));
       }).fail(function(jq){ handleAjaxFail(jq,'加载执行记录失败'); });
     }
+    function switchView(view) {
+      $('.view-pane').addClass('hidden');
+      $('#view-' + view).removeClass('hidden');
+      $('.nav-item')
+        .removeClass('bg-blue-600 text-white')
+        .addClass('hover:bg-gray-100');
+      $('.nav-item[data-view="' + view + '"]')
+        .addClass('bg-blue-600 text-white')
+        .removeClass('hover:bg-gray-100');
+      if (view === 'files') { $('#pageTitle').text('SQL 历史'); }
+      if (view === 'records') { $('#pageTitle').text('执行记录'); }
+      if (view === 'jobs') { $('#pageTitle').text('调度任务'); }
+    }
     $(function() {
       if (!window.jQuery) {
         setStatus('jQuery 加载失败，请检查网络或使用本地镜像', 'warn');
       }
-      loadFiles();
       loadRecords();
+      switchView('files');
+      loadSyncDirDefaults().always(function() {
+        loadFiles();
+        loadSqlTree();
+      });
+      $('.nav-item').on('click', function() {
+        var view = $(this).data('view');
+        switchView(view);
+        if (view === 'records') { loadRecords(); }
+        if (view === 'files') { loadFiles(); }
+      });
       $('#filterExec').change(loadFiles);
       $('#filterStatus').change(loadRecords);
+      $('#reloadTreeBtn').on('click', function() { loadSqlTree(); });
+      $('#applyDirBtn').on('click', function() {
+        currentBaseDir = ($('#baseDirInput').val() || defaultBaseDir).trim() || defaultBaseDir;
+        currentSqlDir = ($('#sqlDirInput').val() || defaultSqlDir).trim() || defaultSqlDir;
+        selectedTreeFileId = null;
+        selectedTreePath = null;
+        treeExpandedMap = {};
+        loadSqlTree();
+        loadFiles();
+        setStatus('已切换目录：' + currentBaseDir + '/' + currentSqlDir, 'ok');
+      });
+      $('#showAllBtn').on('click', function() {
+        selectedTreeFileId = null;
+        selectedTreePath = null;
+        loadSqlTree();
+        loadFiles();
+      });
+      $('#sqlTree').on('click', '.tree-dir-toggle', function() {
+        var path = $(this).data('path');
+        treeExpandedMap[path] = !isTreeExpanded(path);
+        loadSqlTree();
+      });
+      $('#sqlTree').on('click', '.tree-file', function() {
+        selectedTreeFileId = $(this).data('id') ? Number($(this).data('id')) : null;
+        selectedTreePath = $(this).data('path') || null;
+        if (selectedTreeFileId == null) {
+          setStatus('该文件尚未入库，请先执行同步', 'warn');
+        }
+        loadSqlTree();
+        loadFiles();
+      });
+      $('#recordBody').on('click', '.locateSqlBtn', function() {
+        var sqlId = $(this).data('sql-id');
+        focusSqlId = sqlId;
+        $('#filterExec').val('');
+        switchView('files');
+        loadFiles();
+      });
+      $('#recordBody').on('click', '.errToggle', function() {
+        var id = $(this).data('id');
+        var panel = $('#err-full-' + id);
+        var opened = !panel.hasClass('hidden');
+        if (opened) {
+          panel.addClass('hidden');
+          $(this).text('查看详情');
+        } else {
+          panel.removeClass('hidden');
+          $(this).text('收起');
+        }
+      });
+      $('#modalCode').on('mouseenter', '.sql-err-token', function() {
+        $('#syntaxTooltip').text($(this).data('msg') || 'SQL 语法错误').removeClass('hidden');
+      });
+      $('#modalCode').on('mousemove', '.sql-err-token', function(e) {
+        $('#syntaxTooltip').css({ left: (e.clientX + 12) + 'px', top: (e.clientY + 12) + 'px' });
+      });
+      $('#modalCode').on('mouseleave', '.sql-err-token', function() {
+        $('#syntaxTooltip').addClass('hidden').text('');
+      });
       var currentPreviewId = null;
+      var currentPreviewContent = '';
+      var currentPreviewCheck = null;
       function openModalWithId(id) {
         currentPreviewId = id;
         $.get('/api/files/'+id+'/preview', function(data){
           if (data.error) { alert(data.error); return; }
           $('#modalTitle').text(data.fileName||'');
           $('#modalPath').text(data.filePath||'');
-          var codeEl = document.getElementById('modalCode');
-          codeEl.textContent = data.content || '';
-          if (window.hljs) { hljs.highlightElement(codeEl); }
+          currentPreviewContent = data.content || '';
+          currentPreviewCheck = data.syntaxCheck || null;
+          renderSqlPreview(currentPreviewContent, currentPreviewCheck);
+          renderSyntaxHint(data.syntaxCheck);
           $('#previewModal').removeClass('hidden').addClass('flex');
         }).fail(function(jq){ handleAjaxFail(jq,'加载预览失败'); });
       }
+      $('#lineNoToggle').on('change', function() {
+        renderSqlPreview(currentPreviewContent, currentPreviewCheck);
+      });
       $('#fileBody').on('click', '.execBtn', function() {
         var id = $(this).data('id');
         openModalWithId(id);
       });
       $('#modalClose, #modalCancel').on('click', function(){
+        $('#syntaxTooltip').addClass('hidden').text('');
         $('#previewModal').addClass('hidden').removeClass('flex');
       });
       $('#modalExec').on('click', function(){
@@ -203,7 +607,11 @@
         });
       });
       $('#syncBtn').click(function(){
-        $.post('/api/sync/local').done(function(){ loadFiles(); })
+        $.post('/api/sync/local' + activeDirParams()).done(function(){ loadFiles(); loadSqlTree(); setStatus('同步完成：' + currentBaseDir + '/' + currentSqlDir, 'ok'); })
+          .fail(function(jq){ handleAjaxFail(jq,'同步失败'); });
+      });
+      $('#syncBtn2').click(function(){
+        $.post('/api/sync/local' + activeDirParams()).done(function(){ loadFiles(); loadSqlTree(); setStatus('同步完成：' + currentBaseDir + '/' + currentSqlDir, 'ok'); })
           .fail(function(jq){ handleAjaxFail(jq,'同步失败'); });
       });
     });

@@ -4,6 +4,7 @@ import com.example.gitsqlrunner.domain.sql.ExecutionRecord;
 import com.example.gitsqlrunner.domain.sql.ExecutionRecordRepository;
 import com.example.gitsqlrunner.domain.sql.SqlFile;
 import com.example.gitsqlrunner.domain.sql.SqlFileRepository;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.ConnectionCallback;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -11,6 +12,10 @@ import org.springframework.stereotype.Service;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @Service
@@ -65,6 +70,59 @@ public class SqlExecutionService {
       sqlFileRepository.markExecuted(file.getId(), SqlFile.Status.FAILED);
       throw new RuntimeException(e);
     }
+  }
+
+  public Map<String, Object> checkSyntax(String sqlContent) {
+    List<String> parts = splitSql(sqlContent);
+    List<Map<String, Object>> issues = new ArrayList<>();
+    int[] statementCount = {0};
+    jdbcTemplate.execute((ConnectionCallback<Object>) (con) -> {
+      for (int i = 0; i < parts.size(); i++) {
+        String stmt = parts.get(i);
+        if (stmt == null || stmt.isBlank()) continue;
+        statementCount[0]++;
+        try (var ps = con.prepareStatement(stmt)) {
+        } catch (Exception e) {
+          Map<String, Object> item = new HashMap<>();
+          String msg = safeMessage(e);
+          item.put("index", i + 1);
+          item.put("message", msg);
+          item.put("token", extractNearToken(msg));
+          item.put("sql", snippet(stmt));
+          issues.add(item);
+        }
+      }
+      return null;
+    });
+    Map<String, Object> result = new HashMap<>();
+    result.put("ok", issues.isEmpty());
+    result.put("statementCount", statementCount[0]);
+    result.put("issues", issues);
+    return result;
+  }
+
+  private static String safeMessage(Exception e) {
+    if (e.getMessage() == null || e.getMessage().isBlank()) {
+      return e.getClass().getSimpleName();
+    }
+    return e.getMessage();
+  }
+
+  private static String snippet(String sql) {
+    String s = sql.replace('\n', ' ').replace('\r', ' ').trim();
+    if (s.length() <= 120) return s;
+    return s.substring(0, 120) + "...";
+  }
+
+  private static String extractNearToken(String msg) {
+    if (msg == null) return null;
+    int nearIdx = msg.indexOf("near \"");
+    if (nearIdx < 0) return null;
+    int start = nearIdx + 6;
+    int end = msg.indexOf('"', start);
+    if (end <= start) return null;
+    String token = msg.substring(start, end).trim();
+    return token.isBlank() ? null : token;
   }
 
   private static java.util.List<String> splitSql(String sql) {

@@ -12,6 +12,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
+@SuppressWarnings("SqlDialectInspection")
 @Repository
 public class SqlFileRepositoryJdbc implements SqlFileRepository {
   private final JdbcTemplate jdbc;
@@ -26,7 +27,13 @@ public class SqlFileRepositoryJdbc implements SqlFileRepository {
         INSERT INTO sql_file(file_name, git_commit_id, file_path, checksum, last_seen_at)
         VALUES (?,?,?,?,?)
         ON CONFLICT(file_path, checksum)
-        DO UPDATE SET last_seen_at=excluded.last_seen_at
+        DO UPDATE SET
+          last_seen_at=excluded.last_seen_at,
+          git_commit_id=CASE
+            WHEN excluded.git_commit_id IS NULL OR excluded.git_commit_id=''
+            THEN sql_file.git_commit_id
+            ELSE excluded.git_commit_id
+          END
         """, fileName, commitId, filePath, checksum, lastSeenAt.toString());
   }
 
