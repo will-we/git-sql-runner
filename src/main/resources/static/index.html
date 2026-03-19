@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Git SQL Runner</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+</head>
+<body class="bg-gray-50">
+  <div class="max-w-6xl mx-auto py-8">
+    <h1 class="text-2xl font-bold mb-4">SQL 文件列表</h1>
+    <div id="statusBar" class="hidden mb-4 p-2 rounded text-sm"></div>
+    <div class="flex items-center space-x-2 mb-4">
+      <button id="syncBtn" class="px-3 py-1 bg-blue-600 text-white rounded">同步本地 sql/ 目录</button>
+      <select id="filterExec" class="border rounded px-2 py-1">
+        <option value="">全部</option>
+        <option value="0">未执行</option>
+        <option value="1">已执行</option>
+      </select>
+    </div>
+    <table class="min-w-full bg-white shadow rounded">
+      <thead>
+        <tr class="bg-gray-100 text-left">
+          <th class="p-2">ID</th>
+          <th class="p-2">文件名</th>
+          <th class="p-2">状态</th>
+          <th class="p-2">操作</th>
+        </tr>
+      </thead>
+      <tbody id="fileBody"></tbody>
+    </table>
+
+    <h2 class="text-xl font-semibold mt-8 mb-2">执行记录</h2>
+    <div class="mb-2">
+      <select id="filterStatus" class="border rounded px-2 py-1">
+        <option value="">全部</option>
+        <option value="RUNNING">RUNNING</option>
+        <option value="SUCCESS">SUCCESS</option>
+        <option value="FAILED">FAILED</option>
+      </select>
+    </div>
+    <table class="min-w-full bg-white shadow rounded">
+      <thead>
+      <tr class="bg-gray-100 text-left">
+        <th class="p-2">ID</th>
+        <th class="p-2">SQL文件ID</th>
+        <th class="p-2">状态</th>
+        <th class="p-2">开始/结束</th>
+        <th class="p-2">错误</th>
+        <th class="p-2">来源</th>
+      </tr>
+      </thead>
+      <tbody id="recordBody"></tbody>
+    </table>
+  </div>
+
+  <div id="previewModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center p-4">
+    <div class="bg-white rounded shadow max-w-3xl w-full">
+      <div class="px-4 py-3 border-b flex items-center justify-between">
+        <div>
+          <div id="modalTitle" class="text-lg font-semibold"></div>
+          <div id="modalPath" class="text-xs text-gray-500"></div>
+        </div>
+        <button id="modalClose" class="px-2 py-1 text-gray-500 hover:text-gray-700">关闭</button>
+      </div>
+      <div class="p-4">
+        <pre class="max-h-96 overflow-auto"><code id="modalCode" class="language-sql"></code></pre>
+        <div class="mt-3 flex items-center space-x-2">
+          <label for="txMode" class="text-sm text-gray-600">事务模式</label>
+          <select id="txMode" class="border rounded px-2 py-1">
+            <option value="FILE">整文件事务</option>
+            <option value="STATEMENT">逐语句提交</option>
+          </select>
+        </div>
+      </div>
+      <div class="px-4 py-3 border-t flex justify-end space-x-2">
+        <button id="modalExec" class="px-3 py-1 bg-green-600 text-white rounded">确认执行</button>
+        <button id="modalCancel" class="px-3 py-1 bg-gray-200 text-gray-700 rounded">取消</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function setStatus(text, type) {
+      const bar = $('#statusBar');
+      if (!text) { bar.addClass('hidden'); return; }
+      bar.removeClass('hidden')
+        .removeClass('bg-green-100 text-green-800 bg-red-100 text-red-800 bg-yellow-100 text-yellow-800')
+        .addClass(type === 'ok' ? 'bg-green-100 text-green-800'
+          : type === 'warn' ? 'bg-yellow-100 text-yellow-800'
+          : 'bg-red-100 text-red-800')
+        .text(text);
+    }
+    function handleAjaxFail(jq, ctx) {
+      const msg = (jq.responseJSON && jq.responseJSON.message) ? jq.responseJSON.message : (jq.status + ' ' + jq.statusText);
+      setStatus((ctx || '请求失败') + '：' + msg, 'err');
+    }
+    function loadFiles() {
+      const v = $('#filterExec').val();
+      const param = v==='' ? '' : ('?executed=' + (v==='1'?'true':'false'));
+      $.get('/api/files' + param, function(data) {
+        const rows = data.map(function(f){
+          return '<tr class="border-t">'
+            + '<td class="p-2">' + f.id + '</td>'
+            + '<td class="p-2"><span class="font-mono">' + f.fileName + '</span><div class="text-gray-400 text-xs">' + (f.filePath||'') + '</div></td>'
+            + '<td class="p-2">' + f.lastStatus + '</td>'
+            + '<td class="p-2">'
+              + '<button class="px-2 py-1 bg-green-600 text-white rounded execBtn" data-id="' + f.id + '">执行</button>'
+              + '<button class="px-2 py-1 bg-gray-700 text-white rounded ml-1 previewBtn" data-id="' + f.id + '">预览</button>'
+            + '</td>'
+          + '</tr>';
+        });
+        $('#fileBody').html(rows.join(''));
+        setStatus('', 'ok');
+      }).fail(function(jq){ handleAjaxFail(jq,'加载文件列表失败'); });
+    }
+    function loadRecords() {
+      const v = $('#filterStatus').val();
+      const param = v==='' ? '' : ('?status='+v);
+      $.get('/api/records'+param, function(data) {
+        const rows = data.map(function(r){
+          return '<tr class="border-t">'
+            + '<td class="p-2">' + r.id + '</td>'
+            + '<td class="p-2">' + r.sqlFileId + '</td>'
+            + '<td class="p-2">' + r.status + '</td>'
+            + '<td class="p-2"><div>' + r.startTime + '</div><div class="text-xs text-gray-500">' + (r.endTime||'') + '</div></td>'
+            + '<td class="p-2 text-red-600">' + (r.errorMessage||'') + '</td>'
+            + '<td class="p-2">' + r.executedBy + '</td>'
+          + '</tr>';
+        });
+        $('#recordBody').html(rows.join(''));
+      }).fail(function(jq){ handleAjaxFail(jq,'加载执行记录失败'); });
+    }
+    $(function() {
+      if (!window.jQuery) {
+        setStatus('jQuery 加载失败，请检查网络或使用本地镜像', 'warn');
+      }
+      loadFiles();
+      loadRecords();
+      $('#filterExec').change(loadFiles);
+      $('#filterStatus').change(loadRecords);
+      var currentPreviewId = null;
+      function openModalWithId(id) {
+        currentPreviewId = id;
+        $.get('/api/files/'+id+'/preview', function(data){
+          if (data.error) { alert(data.error); return; }
+          $('#modalTitle').text(data.fileName||'');
+          $('#modalPath').text(data.filePath||'');
+          var codeEl = document.getElementById('modalCode');
+          codeEl.textContent = data.content || '';
+          if (window.hljs) { hljs.highlightElement(codeEl); }
+          $('#previewModal').removeClass('hidden').addClass('flex');
+        }).fail(function(jq){ handleAjaxFail(jq,'加载预览失败'); });
+      }
+      $('#fileBody').on('click', '.execBtn', function() {
+        var id = $(this).data('id');
+        openModalWithId(id);
+      });
+      $('#modalClose, #modalCancel').on('click', function(){
+        $('#previewModal').addClass('hidden').removeClass('flex');
+      });
+      $('#modalExec').on('click', function(){
+        var id = currentPreviewId;
+        var mode = $('#txMode').val() || 'FILE';
+        $.post('/api/files/'+id+'/execute?mode='+encodeURIComponent(mode)).done(function(){
+          $('#previewModal').addClass('hidden').removeClass('flex');
+          loadFiles(); loadRecords();
+        }).fail(function(err){
+          var msg = (err.responseJSON && err.responseJSON.message) ? err.responseJSON.message : '未知错误';
+          alert('执行失败: ' + msg);
+        });
+      });
+      $('#fileBody').on('click', '.previewBtn', function() {
+        var id = $(this).data('id');
+        var w = window.open('', '_blank');
+        if (!w) { alert('浏览器阻止了弹窗'); return; }
+        w.document.write('<!doctype html><html><head><meta charset="UTF-8"><title>预览</title>'
+          + '<link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">'
+          + '<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">'
+          + '</head><body class="bg-gray-900 text-gray-100">'
+          + '<div class="max-w-4xl mx-auto py-6">'
+          + '<h1 id="pv-title" class="text-xl font-bold mb-2"></h1>'
+          + '<div id="pv-path" class="text-xs text-gray-400 mb-4"></div>'
+          + '<pre><code id="pv-code" class="language-sql"></code></pre>'
+          + '</div></body></html>');
+        w.document.close();
+        $.get('/api/files/'+id+'/preview', function(data) {
+          if (data.error) { w.document.body.innerText = data.error; return; }
+          w.document.getElementById('pv-title').textContent = data.fileName || '';
+          w.document.getElementById('pv-path').textContent = data.filePath || '';
+          var code = w.document.getElementById('pv-code');
+          code.textContent = data.content || '';
+          var s = w.document.createElement('script');
+          s.src = 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js';
+          s.onload = function(){ if (w.hljs) { w.hljs.highlightAll(); } };
+          w.document.head.appendChild(s);
+        }).fail(function(jq){
+          var m = (jq.responseJSON && jq.responseJSON.message) ? jq.responseJSON.message : (jq.status+' '+jq.statusText);
+          w.document.body.innerText = '预览失败：' + m;
+        });
+      });
+      $('#syncBtn').click(function(){
+        $.post('/api/sync/local').done(function(){ loadFiles(); })
+          .fail(function(jq){ handleAjaxFail(jq,'同步失败'); });
+      });
+    });
+  </script>
+</body>
+</html>
+
