@@ -4,79 +4,93 @@ import com.example.gitsqlrunner.domain.sql.ExecutionRecord;
 import com.example.gitsqlrunner.domain.sql.ExecutionRecordRepository;
 import com.example.gitsqlrunner.domain.sql.SqlFile;
 import com.example.gitsqlrunner.domain.sql.SqlFileRepository;
-import org.springframework.beans.factory.annotation.Value;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.ConnectionCallback;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.sql.SQLException;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+@Slf4j
 @Service
 public class SqlExecutionService {
   private final SqlFileRepository sqlFileRepository;
   private final ExecutionRecordRepository recordRepository;
-  private final JdbcTemplate jdbcTemplate;
+  private final JdbcTemplate metaJdbcTemplate;
+  private final TargetDbExecutorRegistry targetDbExecutorRegistry;
 
   public enum TxMode { FILE, STATEMENT }
 
   public SqlExecutionService(SqlFileRepository sqlFileRepository,
                              ExecutionRecordRepository recordRepository,
-                             JdbcTemplate jdbcTemplate) {
+                             JdbcTemplate metaJdbcTemplate,
+                             TargetDbExecutorRegistry targetDbExecutorRegistry) {
     this.sqlFileRepository = sqlFileRepository;
     this.recordRepository = recordRepository;
-    this.jdbcTemplate = jdbcTemplate;
+    this.metaJdbcTemplate = metaJdbcTemplate;
+    this.targetDbExecutorRegistry = targetDbExecutorRegistry;
   }
 
-  public void execute(int sqlFileId, TxMode txMode, ExecutionRecord.ExecutedBy executedBy) {
+  public Map<String, Object> execute(int sqlFileId, TxMode txMode, ExecutionRecord.ExecutedBy executedBy, List<String> targetIds) {
     Optional<SqlFile> opt = sqlFileRepository.findById(sqlFileId);
     if (opt.isEmpty()) throw new IllegalArgumentException("sql file not found: " + sqlFileId);
-    SqlFile file = opt.get();
-    if (file.isExecuted()) {
-      throw new IllegalStateException("already executed");
+    if (targetDbExecutorRegistry.isEmpty()) {
+      throw new IllegalStateException("no target db configured");
     }
-    int recordId = recordRepository.createRunning(file.getId(), executedBy, Instant.now());
+    List<String> normalizedTargetIds = normalizeTargetIds(targetIds);
+    if (normalizedTargetIds.isEmpty()) {
+      throw new IllegalArgumentException("targetIds required");
+    }
+    List<TargetDbExecutorRegistry.TargetDbExecutor> targets = normalizedTargetIds.stream()
+      .map(targetDbExecutorRegistry::required)
+      .toList();
+    SqlFile file = opt.get();
+    String content;
     try {
-      String content = Files.readString(Path.of(file.getFilePath()));
-      if (txMode == TxMode.FILE) {
-        jdbcTemplate.execute((ConnectionCallback<Object>) (con) -> {
-          con.setAutoCommit(false);
-          try (var st = con.createStatement()) {
-            for (String s : splitSql(content)) {
-              if (!s.isBlank()) st.execute(s);
-            }
-            con.commit();
-          } catch (Exception e) {
-            con.rollback();
-            throw e;
-          }
-          return null;
-        });
-      } else {
-        for (String s : splitSql(content)) {
-          if (!s.isBlank()) jdbcTemplate.execute(s);
-        }
-      }
-      recordRepository.markSuccess(recordId, Instant.now());
-      sqlFileRepository.markExecuted(file.getId(), SqlFile.Status.SUCCESS);
+      content = Files.readString(Path.of(file.getFilePath()));
     } catch (Exception e) {
-      recordRepository.markFailed(recordId, Instant.now(), e.getMessage());
-      sqlFileRepository.markExecuted(file.getId(), SqlFile.Status.FAILED);
       throw new RuntimeException(e);
     }
+    List<Map<String, Object>> results = new ArrayList<>();
+    int successCount = 0;
+    for (var target : targets) {
+      int recordId = recordRepository.createRunning(file.getId(), target.id(), target.type(), executedBy, Instant.now());
+      try {
+        executeSql(target.jdbcTemplate(), content, txMode);
+        recordRepository.markSuccess(recordId, Instant.now());
+        successCount++;
+        results.add(targetResult(target, "SUCCESS", null));
+      } catch (Exception e) {
+        String error = safeMessage(e);
+        recordRepository.markFailed(recordId, Instant.now(), error);
+        results.add(targetResult(target, "FAILED", error));
+      }
+    }
+    boolean allSuccess = successCount == targets.size();
+    sqlFileRepository.markExecuted(file.getId(), allSuccess ? SqlFile.Status.SUCCESS : SqlFile.Status.FAILED);
+    Map<String, Object> summary = new HashMap<>();
+    summary.put("ok", allSuccess);
+    summary.put("totalCount", targets.size());
+    summary.put("successCount", successCount);
+    summary.put("failedCount", targets.size() - successCount);
+    summary.put("results", results);
+    return summary;
   }
 
   public Map<String, Object> checkSyntax(String sqlContent) {
     List<String> parts = splitSql(sqlContent);
     List<Map<String, Object>> issues = new ArrayList<>();
     int[] statementCount = {0};
-    jdbcTemplate.execute((ConnectionCallback<Object>) (con) -> {
+    metaJdbcTemplate.execute((ConnectionCallback<Object>) (con) -> {
       for (int i = 0; i < parts.size(); i++) {
         String stmt = parts.get(i);
         if (stmt == null || stmt.isBlank()) continue;
@@ -101,11 +115,92 @@ public class SqlExecutionService {
     return result;
   }
 
-  private static String safeMessage(Exception e) {
-    if (e.getMessage() == null || e.getMessage().isBlank()) {
-      return e.getClass().getSimpleName();
+  private static void executeSql(JdbcTemplate jdbcTemplate, String content, TxMode txMode) {
+    if (txMode == TxMode.FILE) {
+      jdbcTemplate.execute((ConnectionCallback<Object>) (con) -> {
+        con.setAutoCommit(false);
+        try (var st = con.createStatement()) {
+          for (String s : splitSql(content)) {
+            if (!s.isBlank()) st.execute(s);
+          }
+          con.commit();
+        } catch (Exception e) {
+          log.error("rollback due to error: {}", safeMessage(e), e);
+          throw e;
+        }
+        return null;
+      });
+      return;
     }
-    return e.getMessage();
+    for (String s : splitSql(content)) {
+      if (!s.isBlank()) jdbcTemplate.execute(s);
+    }
+  }
+
+  private static List<String> normalizeTargetIds(List<String> targetIds) {
+    if (targetIds == null) return List.of();
+    LinkedHashSet<String> dedup = new LinkedHashSet<>();
+    for (String targetId : targetIds) {
+      if (targetId == null) continue;
+      String v = targetId.trim();
+      if (!v.isEmpty()) dedup.add(v);
+    }
+    return dedup.stream().toList();
+  }
+
+  private static Map<String, Object> targetResult(TargetDbExecutorRegistry.TargetDbExecutor target, String status, String errorMessage) {
+    Map<String, Object> map = new HashMap<>();
+    map.put("targetDbId", target.id());
+    map.put("targetDbLabel", target.label());
+    map.put("targetDbType", target.type());
+    map.put("databaseName", target.databaseName());
+    map.put("status", status);
+    map.put("errorMessage", errorMessage);
+    return map;
+  }
+
+  private static String safeMessage(Throwable e) {
+    Throwable core = mostSpecificCause(e);
+    if (core instanceof SQLException sqlException) {
+      String message = sqlException.getMessage();
+      if (message == null || message.isBlank()) {
+        message = sqlException.getClass().getSimpleName();
+      }
+      String sqlState = sqlException.getSQLState();
+      int errorCode = sqlException.getErrorCode();
+      if ((sqlState == null || sqlState.isBlank()) && errorCode == 0) {
+        return message;
+      }
+      return message + " [SQLState=" + valueOrUnknown(sqlState) + ", ErrorCode=" + errorCode + "]";
+    }
+    if (core.getMessage() == null || core.getMessage().isBlank()) {
+      return core.getClass().getSimpleName();
+    }
+    return core.getMessage();
+  }
+
+  private static Throwable mostSpecificCause(Throwable throwable) {
+    if (throwable == null) return new RuntimeException("UnknownException");
+    if (throwable instanceof org.springframework.dao.DataAccessException dataAccessException) {
+      Throwable specific = dataAccessException.getMostSpecificCause();
+      if (specific != null && specific != dataAccessException) {
+        return rootCause(specific);
+      }
+    }
+    return rootCause(throwable);
+  }
+
+  private static Throwable rootCause(Throwable throwable) {
+    Throwable current = throwable;
+    while (current.getCause() != null && current.getCause() != current) {
+      current = current.getCause();
+    }
+    return current;
+  }
+
+  private static String valueOrUnknown(String value) {
+    if (value == null || value.isBlank()) return "UNKNOWN";
+    return value;
   }
 
   private static String snippet(String sql) {
@@ -140,7 +235,7 @@ public class SqlExecutionService {
         cur.append(c);
       }
     }
-    if (cur.length() > 0) res.add(cur.toString());
+    if (!cur.isEmpty()) res.add(cur.toString());
     return res;
   }
 }

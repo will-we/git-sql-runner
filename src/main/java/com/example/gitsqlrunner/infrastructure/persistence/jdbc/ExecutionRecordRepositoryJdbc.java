@@ -11,6 +11,7 @@ import java.sql.SQLException;
 import java.time.Instant;
 import java.util.List;
 
+@SuppressWarnings("SqlDialectInspection")
 @Repository
 public class ExecutionRecordRepositoryJdbc implements ExecutionRecordRepository {
   private final JdbcTemplate jdbc;
@@ -20,9 +21,9 @@ public class ExecutionRecordRepositoryJdbc implements ExecutionRecordRepository 
   }
 
   @Override
-  public int createRunning(int sqlFileId, ExecutionRecord.ExecutedBy executedBy, Instant startTime) {
-    jdbc.update("INSERT INTO execution_record(sql_file_id, status, start_time, executed_by) VALUES (?,?,?,?)",
-      sqlFileId, ExecutionRecord.Status.RUNNING.name(), startTime.toString(), executedBy.name());
+  public int createRunning(int sqlFileId, String targetDbId, String targetDbType, ExecutionRecord.ExecutedBy executedBy, Instant startTime) {
+    jdbc.update("INSERT INTO execution_record(sql_file_id, status, start_time, executed_by, target_db_id, target_db_type) VALUES (?,?,?,?,?,?)",
+      sqlFileId, ExecutionRecord.Status.RUNNING.name(), startTime.toString(), executedBy.name(), targetDbId, targetDbType);
     return jdbc.queryForObject("SELECT last_insert_rowid()", Integer.class);
   }
 
@@ -57,7 +58,9 @@ public class ExecutionRecordRepositoryJdbc implements ExecutionRecordRepository 
         rs.getString("end_time") == null ? null : Instant.parse(rs.getString("end_time")),
         rs.getString("error_message"),
         ExecutionRecord.ExecutedBy.valueOf(rs.getString("executed_by")),
-        rs.getInt("retry_count")
+        rs.getInt("retry_count"),
+        rs.getString("target_db_id"),
+        rs.getString("target_db_type")
       );
     }
   };

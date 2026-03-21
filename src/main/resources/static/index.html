@@ -18,6 +18,7 @@
       <button class="nav-item w-full text-left px-3 py-2 rounded bg-blue-600 text-white" data-view="files">SQL 历史</button>
       <button class="nav-item w-full text-left px-3 py-2 rounded hover:bg-gray-100" data-view="records">执行记录</button>
       <button class="nav-item w-full text-left px-3 py-2 rounded hover:bg-gray-100" data-view="jobs">调度任务</button>
+      <button class="nav-item w-full text-left px-3 py-2 rounded hover:bg-gray-100" data-view="dbconfig">数据库配置</button>
     </nav>
   </aside>
 
@@ -86,6 +87,7 @@
             <th class="p-2">开始时间</th>
             <th class="p-2">耗时</th>
             <th class="p-2">失败原因</th>
+            <th class="p-2">目标库</th>
             <th class="p-2">来源</th>
           </tr>
           </thead>
@@ -98,6 +100,29 @@
           <div class="text-lg font-semibold mb-2">调度任务</div>
           <div class="text-sm text-gray-600 mb-4">当前已启用定时索引任务：每 5 分钟扫描本地 sql/ 目录。</div>
           <button id="syncBtn2" class="px-3 py-1 bg-blue-600 text-white rounded">立即执行一次同步</button>
+        </div>
+      </section>
+
+      <section id="view-dbconfig" class="view-pane hidden">
+        <div class="mb-3 flex items-center space-x-2">
+          <button id="addTargetBtn" class="px-3 py-1 bg-blue-600 text-white rounded">新增数据源</button>
+          <button id="reloadTargetBtn" class="px-3 py-1 bg-gray-700 text-white rounded">刷新列表</button>
+        </div>
+        <div class="bg-white shadow rounded overflow-auto">
+          <table class="min-w-full">
+            <thead>
+            <tr class="bg-gray-100 text-left">
+              <th class="p-2">ID</th>
+              <th class="p-2">标识</th>
+              <th class="p-2">名称</th>
+              <th class="p-2">类型</th>
+              <th class="p-2">地址</th>
+              <th class="p-2">状态</th>
+              <th class="p-2">操作</th>
+            </tr>
+            </thead>
+            <tbody id="targetDbBody"></tbody>
+          </table>
         </div>
       </section>
     </div>
@@ -122,6 +147,8 @@
             <option value="FILE">整文件事务</option>
             <option value="STATEMENT">逐语句提交</option>
           </select>
+          <span class="ml-3 text-sm text-gray-600">目标库</span>
+          <div id="targetDbList" class="flex flex-wrap gap-2 text-sm"></div>
           <label class="ml-3 text-sm text-gray-600 inline-flex items-center">
             <input id="lineNoToggle" type="checkbox" class="mr-1" checked>
             显示行号
@@ -131,6 +158,69 @@
       <div class="px-4 py-3 border-t flex justify-end space-x-2">
         <button id="modalExec" class="px-3 py-1 bg-green-600 text-white rounded">确认执行</button>
         <button id="modalCancel" class="px-3 py-1 bg-gray-200 text-gray-700 rounded">取消</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="targetDbModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center p-4 z-50">
+    <div class="bg-white rounded shadow w-full max-w-4xl">
+      <div class="px-4 py-3 border-b flex items-center justify-between">
+        <div id="targetDbModalTitle" class="text-lg font-semibold">新增数据源</div>
+        <button id="targetDbModalClose" class="px-2 py-1 text-gray-500 hover:text-gray-700">关闭</button>
+      </div>
+      <div class="p-4 grid grid-cols-2 gap-3">
+        <div>
+          <label class="text-sm text-gray-600">标识 targetId</label>
+          <input id="tdTargetId" class="mt-1 w-full border rounded px-2 py-1">
+        </div>
+        <div>
+          <label class="text-sm text-gray-600">名称</label>
+          <input id="tdName" class="mt-1 w-full border rounded px-2 py-1">
+        </div>
+        <div>
+          <label class="text-sm text-gray-600">类型</label>
+          <select id="tdType" class="mt-1 w-full border rounded px-2 py-1">
+            <option value="postgresql">postgresql</option>
+            <option value="mysql">mysql</option>
+          </select>
+        </div>
+        <div>
+          <label class="text-sm text-gray-600">主机</label>
+          <input id="tdHost" class="mt-1 w-full border rounded px-2 py-1" placeholder="127.0.0.1">
+        </div>
+        <div>
+          <label class="text-sm text-gray-600">端口</label>
+          <input id="tdPort" type="number" class="mt-1 w-full border rounded px-2 py-1">
+        </div>
+        <div>
+          <label class="text-sm text-gray-600">数据库名称</label>
+          <input id="tdDatabaseName" class="mt-1 w-full border rounded px-2 py-1">
+        </div>
+        <div>
+          <label class="text-sm text-gray-600">用户名</label>
+          <input id="tdUsername" class="mt-1 w-full border rounded px-2 py-1">
+        </div>
+        <div>
+          <label class="text-sm text-gray-600">密码（编辑时留空表示不变）</label>
+          <input id="tdPassword" type="password" class="mt-1 w-full border rounded px-2 py-1">
+        </div>
+        <div class="col-span-2">
+          <label class="text-sm text-gray-600">JDBC 参数（可选）</label>
+          <input id="tdJdbcParams" class="mt-1 w-full border rounded px-2 py-1" placeholder="useSSL=false&serverTimezone=UTC">
+        </div>
+        <div class="col-span-2">
+          <label class="inline-flex items-center text-sm text-gray-600">
+            <input id="tdEnabled" type="checkbox" class="mr-2" checked>启用
+          </label>
+        </div>
+      </div>
+      <div class="px-4 py-3 border-t flex items-center justify-between">
+        <div id="targetDbModalHint" class="text-sm text-gray-500"></div>
+        <div class="space-x-2">
+          <button id="targetDbTestBtn" class="px-3 py-1 bg-yellow-500 text-white rounded">测试连接</button>
+          <button id="targetDbSaveBtn" class="px-3 py-1 bg-blue-600 text-white rounded">保存</button>
+          <button id="targetDbCancelBtn" class="px-3 py-1 bg-gray-200 text-gray-700 rounded">取消</button>
+        </div>
       </div>
     </div>
   </div>
@@ -198,6 +288,11 @@
       if (v === 'MANUAL') return '<span class="px-2 py-1 rounded text-xs bg-blue-100 text-blue-700">MANUAL</span>';
       if (v === 'SCHEDULE') return '<span class="px-2 py-1 rounded text-xs bg-purple-100 text-purple-700">SCHEDULE</span>';
       return '<span class="px-2 py-1 rounded text-xs bg-gray-100 text-gray-600">' + (v || '-') + '</span>';
+    }
+    function targetBadge(id, type) {
+      if (!id && !type) return '<span class="text-gray-400">-</span>';
+      var t = type ? String(type).toUpperCase() : '-';
+      return '<span class="px-2 py-1 rounded text-xs bg-indigo-100 text-indigo-700">' + escapeHtml(id || '-') + ' · ' + escapeHtml(t) + '</span>';
     }
     function errorCell(msg, rowId) {
       if (!msg) return '<span class="text-gray-400">-</span>';
@@ -329,6 +424,9 @@
     var treeExpandedMap = {};
     var defaultBaseDir = '.';
     var defaultSqlDir = 'sql';
+    var availableTargets = [];
+    var targetDbConfigs = [];
+    var editingTargetDbId = null;
     var currentBaseDir = defaultBaseDir;
     var currentSqlDir = defaultSqlDir;
     function applySyncDirDefaults(baseDir, sqlDir) {
@@ -443,11 +541,118 @@
             + '<td class="p-2">' + formatTime(r.startTime) + '</td>'
             + '<td class="p-2">' + (r.durationMs == null ? durationText(r.startTime, r.endTime) : (r.durationMs + 'ms')) + '</td>'
             + '<td class="p-2 align-top">' + errorCell(r.errorMessage, r.id) + '</td>'
+            + '<td class="p-2">' + targetBadge(r.targetDbId, r.targetDbType) + '</td>'
             + '<td class="p-2">' + sourceBadge(r.executedBy) + '</td>'
           + '</tr>';
         });
         $('#recordBody').html(rows.join(''));
       }).fail(function(jq){ handleAjaxFail(jq,'加载执行记录失败'); });
+    }
+    function selectedTargetIds() {
+      return $('#targetDbList').find('input[type=checkbox]:checked').map(function(){ return $(this).val(); }).get();
+    }
+    function saveTargetSelection(ids) {
+      localStorage.setItem('sqlRunner.selectedTargets', JSON.stringify(ids || []));
+    }
+    function loadSavedTargetSelection() {
+      try {
+        var v = localStorage.getItem('sqlRunner.selectedTargets');
+        if (!v) return [];
+        var arr = JSON.parse(v);
+        return Array.isArray(arr) ? arr.map(function(x){ return String(x); }) : [];
+      } catch (e) {
+        return [];
+      }
+    }
+    function renderTargetOptions() {
+      if (!availableTargets.length) {
+        $('#targetDbList').html('<span class="text-xs text-gray-400">未配置目标库</span>');
+        return;
+      }
+      var saved = loadSavedTargetSelection();
+      var html = availableTargets.map(function(t){
+        var checked = saved.indexOf(t.id) >= 0 ? ' checked' : '';
+        var dbName = t.databaseName ? (' / ' + String(t.databaseName)) : '';
+        var text = escapeHtml(t.label || t.id) + ' (' + escapeHtml((t.type || '').toUpperCase()) + escapeHtml(dbName) + ')';
+        return '<label class="inline-flex items-center text-xs border rounded px-2 py-1 bg-gray-50">'
+          + '<input type="checkbox" class="mr-1 targetDbCk" value="' + escapeHtml(t.id) + '"' + checked + '>'
+          + text
+          + '</label>';
+      }).join('');
+      $('#targetDbList').html(html);
+    }
+    function loadTargets() {
+      return $.get('/api/settings/targets', function(resp){
+        availableTargets = (resp && resp.targets) ? resp.targets : [];
+        renderTargetOptions();
+      }).fail(function(){
+        availableTargets = [];
+        renderTargetOptions();
+      });
+    }
+    function collectTargetDbForm() {
+      return {
+        targetId: ($('#tdTargetId').val() || '').trim(),
+        name: ($('#tdName').val() || '').trim(),
+        dbType: ($('#tdType').val() || '').trim(),
+        host: ($('#tdHost').val() || '').trim(),
+        port: Number($('#tdPort').val() || 0),
+        databaseName: ($('#tdDatabaseName').val() || '').trim(),
+        username: ($('#tdUsername').val() || '').trim(),
+        password: $('#tdPassword').val() || '',
+        jdbcParams: ($('#tdJdbcParams').val() || '').trim(),
+        enabled: $('#tdEnabled').prop('checked')
+      };
+    }
+    function fillTargetDbForm(item) {
+      $('#tdTargetId').val(item ? (item.targetId || '') : '');
+      $('#tdName').val(item ? (item.name || '') : '');
+      $('#tdType').val(item ? (item.dbType || 'postgresql') : 'postgresql');
+      $('#tdHost').val(item ? (item.host || '') : '127.0.0.1');
+      $('#tdPort').val(item ? (item.port || '') : '');
+      $('#tdDatabaseName').val(item ? (item.databaseName || '') : '');
+      $('#tdUsername').val(item ? (item.username || '') : '');
+      $('#tdPassword').val('');
+      $('#tdJdbcParams').val(item ? (item.jdbcParams || '') : '');
+      $('#tdEnabled').prop('checked', item ? !!item.enabled : true);
+      $('#targetDbModalHint').text('');
+    }
+    function openTargetDbModal(item) {
+      editingTargetDbId = item ? item.id : null;
+      $('#targetDbModalTitle').text(item ? '编辑数据源' : '新增数据源');
+      fillTargetDbForm(item || null);
+      $('#targetDbModal').removeClass('hidden').addClass('flex');
+    }
+    function closeTargetDbModal() {
+      $('#targetDbModal').addClass('hidden').removeClass('flex');
+      editingTargetDbId = null;
+    }
+    function targetDbStatusBadge(enabled) {
+      return enabled
+        ? '<span class="px-2 py-1 rounded text-xs bg-green-100 text-green-700">启用</span>'
+        : '<span class="px-2 py-1 rounded text-xs bg-gray-100 text-gray-600">停用</span>';
+    }
+    function loadTargetDbConfigs() {
+      return $.get('/api/targets', function(resp) {
+        targetDbConfigs = (resp && resp.items) ? resp.items : [];
+        var rows = targetDbConfigs.map(function(t) {
+          var addr = (t.host || '-') + ':' + (t.port || '-') + '/' + (t.databaseName || '-');
+          return '<tr class="border-t">'
+            + '<td class="p-2">' + t.id + '</td>'
+            + '<td class="p-2 font-mono text-xs">' + escapeHtml(t.targetId || '-') + '</td>'
+            + '<td class="p-2">' + escapeHtml(t.name || '-') + '</td>'
+            + '<td class="p-2">' + escapeHtml((t.dbType || '').toUpperCase()) + '</td>'
+            + '<td class="p-2 font-mono text-xs">' + escapeHtml(addr) + '</td>'
+            + '<td class="p-2">' + targetDbStatusBadge(!!t.enabled) + '</td>'
+            + '<td class="p-2 space-x-1">'
+              + '<button class="px-2 py-1 bg-blue-600 text-white rounded targetEditBtn" data-id="' + t.id + '">编辑</button>'
+              + '<button class="px-2 py-1 bg-yellow-500 text-white rounded targetTestBtn" data-id="' + t.id + '">检测</button>'
+              + '<button class="px-2 py-1 bg-red-600 text-white rounded targetDeleteBtn" data-id="' + t.id + '">删除</button>'
+            + '</td>'
+          + '</tr>';
+        });
+        $('#targetDbBody').html(rows.join(''));
+      }).fail(function(jq){ handleAjaxFail(jq, '加载数据库配置失败'); });
     }
     function switchView(view) {
       $('.view-pane').addClass('hidden');
@@ -461,6 +666,7 @@
       if (view === 'files') { $('#pageTitle').text('SQL 历史'); }
       if (view === 'records') { $('#pageTitle').text('执行记录'); }
       if (view === 'jobs') { $('#pageTitle').text('调度任务'); }
+      if (view === 'dbconfig') { $('#pageTitle').text('数据库配置'); }
     }
     $(function() {
       if (!window.jQuery) {
@@ -472,11 +678,13 @@
         loadFiles();
         loadSqlTree();
       });
+      loadTargets();
       $('.nav-item').on('click', function() {
         var view = $(this).data('view');
         switchView(view);
         if (view === 'records') { loadRecords(); }
         if (view === 'files') { loadFiles(); }
+        if (view === 'dbconfig') { loadTargetDbConfigs(); }
       });
       $('#filterExec').change(loadFiles);
       $('#filterStatus').change(loadRecords);
@@ -558,6 +766,90 @@
       $('#lineNoToggle').on('change', function() {
         renderSqlPreview(currentPreviewContent, currentPreviewCheck);
       });
+      $('#targetDbList').on('change', '.targetDbCk', function() {
+        saveTargetSelection(selectedTargetIds());
+      });
+      $('#addTargetBtn').on('click', function() {
+        openTargetDbModal(null);
+      });
+      $('#reloadTargetBtn').on('click', function() {
+        loadTargetDbConfigs();
+      });
+      $('#targetDbBody').on('click', '.targetEditBtn', function() {
+        var id = Number($(this).data('id'));
+        var item = targetDbConfigs.find(function(x){ return Number(x.id) === id; });
+        if (!item) return;
+        openTargetDbModal(item);
+      });
+      $('#targetDbBody').on('click', '.targetDeleteBtn', function() {
+        var id = Number($(this).data('id'));
+        if (!confirm('确认删除该数据源吗？')) return;
+        $.ajax({
+          url: '/api/targets/' + id,
+          method: 'DELETE'
+        }).done(function() {
+          setStatus('删除成功', 'ok');
+          loadTargetDbConfigs();
+          loadTargets();
+        }).fail(function(jq){
+          handleAjaxFail(jq, '删除数据源失败');
+        });
+      });
+      $('#targetDbBody').on('click', '.targetTestBtn', function() {
+        var id = Number($(this).data('id'));
+        $.ajax({
+          url: '/api/targets/' + id + '/test',
+          method: 'POST'
+        }).done(function(resp){
+          if (resp && resp.ok) {
+            setStatus('连接检测成功：' + (resp.dbProduct || ''), 'ok');
+          } else {
+            setStatus('连接检测失败：' + ((resp && resp.message) || '未知错误'), 'warn');
+          }
+        }).fail(function(jq){
+          handleAjaxFail(jq, '连接检测失败');
+        });
+      });
+      $('#targetDbModalClose, #targetDbCancelBtn').on('click', function() {
+        closeTargetDbModal();
+      });
+      $('#targetDbTestBtn').on('click', function() {
+        var payload = collectTargetDbForm();
+        $.ajax({
+          url: '/api/targets/test',
+          method: 'POST',
+          contentType: 'application/json',
+          data: JSON.stringify(payload)
+        }).done(function(resp){
+          if (resp && resp.ok) {
+            $('#targetDbModalHint').text('连接成功：' + (resp.dbProduct || ''));
+            setStatus('连接检测通过', 'ok');
+          } else {
+            $('#targetDbModalHint').text('连接失败：' + ((resp && resp.message) || '未知错误'));
+            setStatus('连接检测失败', 'warn');
+          }
+        }).fail(function(jq){
+          handleAjaxFail(jq, '连接检测失败');
+        });
+      });
+      $('#targetDbSaveBtn').on('click', function() {
+        var payload = collectTargetDbForm();
+        var url = editingTargetDbId == null ? '/api/targets' : ('/api/targets/' + editingTargetDbId);
+        var method = editingTargetDbId == null ? 'POST' : 'PUT';
+        $.ajax({
+          url: url,
+          method: method,
+          contentType: 'application/json',
+          data: JSON.stringify(payload)
+        }).done(function() {
+          closeTargetDbModal();
+          setStatus('数据源保存成功', 'ok');
+          loadTargetDbConfigs();
+          loadTargets();
+        }).fail(function(jq){
+          handleAjaxFail(jq, '保存数据源失败');
+        });
+      });
       $('#fileBody').on('click', '.execBtn', function() {
         var id = $(this).data('id');
         openModalWithId(id);
@@ -569,8 +861,23 @@
       $('#modalExec').on('click', function(){
         var id = currentPreviewId;
         var mode = $('#txMode').val() || 'FILE';
-        $.post('/api/files/'+id+'/execute?mode='+encodeURIComponent(mode)).done(function(){
+        var targetIds = selectedTargetIds();
+        if (!targetIds.length) {
+          alert('请至少选择一个目标库');
+          return;
+        }
+        saveTargetSelection(targetIds);
+        $.ajax({
+          url: '/api/files/' + id + '/execute',
+          method: 'POST',
+          traditional: true,
+          data: { mode: mode, targetIds: targetIds }
+        }).done(function(resp){
           $('#previewModal').addClass('hidden').removeClass('flex');
+          var total = (resp && resp.totalCount) || targetIds.length;
+          var success = (resp && resp.successCount) || 0;
+          var failed = (resp && resp.failedCount) || (total - success);
+          setStatus('执行完成：成功 ' + success + '，失败 ' + failed + '，总计 ' + total, failed > 0 ? 'warn' : 'ok');
           loadFiles(); loadRecords();
         }).fail(function(err){
           var msg = (err.responseJSON && err.responseJSON.message) ? err.responseJSON.message : '未知错误';

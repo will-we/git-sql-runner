@@ -4,6 +4,7 @@ out/
 bin/
 
 .idea/
+.trae
 *.iml
 .classpath
 .project

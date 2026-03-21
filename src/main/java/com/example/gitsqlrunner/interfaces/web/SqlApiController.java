@@ -2,6 +2,7 @@ package com.example.gitsqlrunner.interfaces.web;
 
 import com.example.gitsqlrunner.application.GitSyncUseCase;
 import com.example.gitsqlrunner.application.SqlExecutionService;
+import com.example.gitsqlrunner.application.TargetDbExecutorRegistry;
 import com.example.gitsqlrunner.domain.sql.ExecutionRecord;
 import com.example.gitsqlrunner.domain.sql.ExecutionRecordRepository;
 import com.example.gitsqlrunner.domain.sql.SqlFileRepository;
@@ -31,6 +32,7 @@ public class SqlApiController {
     private final ExecutionRecordRepository recordRepo;
     private final SqlExecutionService execService;
     private final GitSyncUseCase gitSync;
+    private final TargetDbExecutorRegistry targetDbExecutorRegistry;
     private final String defaultBaseDir;
     private final String defaultSqlDir;
 
@@ -38,12 +40,14 @@ public class SqlApiController {
                             ExecutionRecordRepository recordRepo,
                             SqlExecutionService execService,
                             GitSyncUseCase gitSync,
+                            TargetDbExecutorRegistry targetDbExecutorRegistry,
                             @Value("${app.sync.base-dir:.}") String defaultBaseDir,
                             @Value("${app.sync.sql-dir:sql}") String defaultSqlDir) {
         this.fileRepo = fileRepo;
         this.recordRepo = recordRepo;
         this.execService = execService;
         this.gitSync = gitSync;
+        this.targetDbExecutorRegistry = targetDbExecutorRegistry;
         this.defaultBaseDir = defaultBaseDir;
         this.defaultSqlDir = defaultSqlDir;
     }
@@ -66,6 +70,11 @@ public class SqlApiController {
         return Map.of("baseDir", defaultBaseDir, "sqlDir", defaultSqlDir);
     }
 
+    @GetMapping("/settings/targets")
+    public Object targetSettings() {
+        return Map.of("targets", targetDbExecutorRegistry.listTargets());
+    }
+
     @GetMapping("/files/tree")
     public Object filesTree(@RequestParam(name = "baseDir", defaultValue = "${app.sync.base-dir:.}") String baseDir,
                             @RequestParam(name = "sqlDir", defaultValue = "${app.sync.sql-dir:sql}") String sqlDir) {
@@ -80,8 +89,7 @@ public class SqlApiController {
                             f -> f,
                             (a, b) -> a
                     ));
-            Map<String, Object> node = buildTreeNode(root, root, indexed);
-            return node;
+            return buildTreeNode(root, root, indexed);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -98,9 +106,13 @@ public class SqlApiController {
      */
     @PostMapping("/files/{id}/execute")
     public ResponseEntity<?> execute(@PathVariable("id") int id,
-                                     @RequestParam(name = "mode", defaultValue = "FILE") String mode) {
-        execService.execute(id, SqlExecutionService.TxMode.valueOf(mode), ExecutionRecord.ExecutedBy.MANUAL);
-        return ResponseEntity.ok(Map.of("ok", true));
+                                     @RequestParam(name = "mode", defaultValue = "FILE") String mode,
+                                     @RequestParam(name = "targetIds", required = false) List<String> targetIds) {
+        try {
+            return ResponseEntity.ok(execService.execute(id, SqlExecutionService.TxMode.valueOf(mode), ExecutionRecord.ExecutedBy.MANUAL, targetIds));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("ok", false, "message", e.getMessage()));
+        }
     }
 
     /**
@@ -138,6 +150,8 @@ public class SqlApiController {
             view.put("durationMs", durationMs);
             view.put("errorMessage", r.getErrorMessage());
             view.put("executedBy", r.getExecutedBy().name());
+            view.put("targetDbId", r.getTargetDbId());
+            view.put("targetDbType", r.getTargetDbType());
             return view;
         }).toList();
     }

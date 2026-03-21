@@ -18,7 +18,28 @@ CREATE TABLE IF NOT EXISTS execution_record(
   end_time TEXT,
   error_message TEXT,
   executed_by TEXT NOT NULL CHECK(executed_by IN ('MANUAL','SCHEDULE')),
+  target_db_id TEXT,
+  target_db_type TEXT,
   retry_count INTEGER DEFAULT 0,
   FOREIGN KEY(sql_file_id) REFERENCES sql_file(id)
 );
+
+CREATE INDEX IF NOT EXISTS idx_execution_record_file_target_time ON execution_record(sql_file_id, target_db_id, start_time DESC);
+
+CREATE TABLE IF NOT EXISTS target_database(
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  target_id TEXT NOT NULL UNIQUE,
+  name TEXT NOT NULL,
+  db_type TEXT NOT NULL CHECK(db_type IN ('mysql','postgresql')),
+  host TEXT NOT NULL,
+  port INTEGER NOT NULL,
+  database_name TEXT NOT NULL,
+  username TEXT NOT NULL,
+  password TEXT NOT NULL,
+  jdbc_params TEXT,
+  enabled INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_target_database_enabled ON target_database(enabled, target_id);
 
