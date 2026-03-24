@@ -1,11 +1,11 @@
 package com.example.gitsqlrunner.interfaces.web;
 
 import com.example.gitsqlrunner.application.TargetDbConfigService;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.Map;
-
+@Slf4j
 @RestController
 @RequestMapping("/api/targets")
 public class TargetDbController {
@@ -17,52 +17,41 @@ public class TargetDbController {
 
   @GetMapping
   public Object list() {
-    return Map.of("items", targetDbConfigService.listAll());
+    log.info("api list target configs");
+    return ApiResponseMaps.single("items", targetDbConfigService.listAll());
   }
 
   @PostMapping
   public ResponseEntity<?> create(@RequestBody TargetDbConfigService.TargetDbPayload payload) {
-    try {
-      return ResponseEntity.ok(targetDbConfigService.create(payload));
-    } catch (IllegalArgumentException e) {
-      return ResponseEntity.badRequest().body(Map.of("ok", false, "message", e.getMessage()));
-    }
+    log.info("api create target config: targetId={}, dbType={}, host={}, port={}, databaseName={}",
+      payload.targetId(), payload.dbType(), payload.host(), payload.port(), payload.databaseName());
+    return ResponseEntity.ok(targetDbConfigService.create(payload));
   }
 
   @PutMapping("/{id}")
   public ResponseEntity<?> update(@PathVariable int id, @RequestBody TargetDbConfigService.TargetDbPayload payload) {
-    try {
-      return ResponseEntity.ok(targetDbConfigService.update(id, payload));
-    } catch (IllegalArgumentException e) {
-      return ResponseEntity.badRequest().body(Map.of("ok", false, "message", e.getMessage()));
-    }
+    log.info("api update target config: id={}, targetId={}, dbType={}, host={}, port={}, databaseName={}",
+      id, payload.targetId(), payload.dbType(), payload.host(), payload.port(), payload.databaseName());
+    return ResponseEntity.ok(targetDbConfigService.update(id, payload));
   }
 
   @DeleteMapping("/{id}")
   public ResponseEntity<?> delete(@PathVariable int id) {
-    try {
-      targetDbConfigService.delete(id);
-      return ResponseEntity.ok(Map.of("ok", true));
-    } catch (IllegalArgumentException e) {
-      return ResponseEntity.badRequest().body(Map.of("ok", false, "message", e.getMessage()));
-    }
+    log.info("api delete target config: id={}", id);
+    targetDbConfigService.delete(id);
+    return ResponseEntity.ok(ApiResponseMaps.ok());
   }
 
   @PostMapping("/test")
   public ResponseEntity<?> test(@RequestBody TargetDbConfigService.TargetDbPayload payload) {
-    try {
-      return ResponseEntity.ok(targetDbConfigService.testConnection(payload));
-    } catch (IllegalArgumentException e) {
-      return ResponseEntity.badRequest().body(Map.of("ok", false, "message", e.getMessage()));
-    }
+    log.info("api test target config: targetId={}, dbType={}, host={}, port={}, databaseName={}",
+      payload.targetId(), payload.dbType(), payload.host(), payload.port(), payload.databaseName());
+    return ResponseEntity.ok(targetDbConfigService.testConnection(payload));
   }
 
   @PostMapping("/{id}/test")
   public ResponseEntity<?> testById(@PathVariable int id) {
-    try {
-      return ResponseEntity.ok(targetDbConfigService.testConnectionById(id));
-    } catch (IllegalArgumentException e) {
-      return ResponseEntity.badRequest().body(Map.of("ok", false, "message", e.getMessage()));
-    }
+    log.info("api test target config by id: id={}", id);
+    return ResponseEntity.ok(targetDbConfigService.testConnectionById(id));
   }
 }

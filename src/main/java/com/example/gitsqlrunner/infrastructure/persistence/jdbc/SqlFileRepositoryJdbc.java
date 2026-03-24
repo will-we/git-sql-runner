@@ -2,6 +2,7 @@ package com.example.gitsqlrunner.infrastructure.persistence.jdbc;
 
 import com.example.gitsqlrunner.domain.sql.SqlFile;
 import com.example.gitsqlrunner.domain.sql.SqlFileRepository;
+import com.example.gitsqlrunner.support.CompatTime;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Repository;
@@ -23,23 +24,24 @@ public class SqlFileRepositoryJdbc implements SqlFileRepository {
 
   @Override
   public void upsert(String fileName, String commitId, String filePath, String checksum, Instant lastSeenAt) {
-    jdbc.update("""
-        INSERT INTO sql_file(file_name, git_commit_id, file_path, checksum, last_seen_at)
-        VALUES (?,?,?,?,?)
-        ON CONFLICT(file_path, checksum)
-        DO UPDATE SET
-          last_seen_at=excluded.last_seen_at,
-          git_commit_id=CASE
-            WHEN excluded.git_commit_id IS NULL OR excluded.git_commit_id=''
-            THEN sql_file.git_commit_id
-            ELSE excluded.git_commit_id
-          END
-        """, fileName, commitId, filePath, checksum, lastSeenAt.toString());
+    jdbc.update(
+      "INSERT INTO sql_file(file_name, git_commit_id, file_path, checksum, last_seen_at) " +
+        "VALUES (?,?,?,?,?) " +
+        "ON CONFLICT(file_path, checksum) " +
+        "DO UPDATE SET " +
+        "last_seen_at=excluded.last_seen_at, " +
+        "git_commit_id=CASE " +
+        "WHEN excluded.git_commit_id IS NULL OR excluded.git_commit_id='' " +
+        "THEN sql_file.git_commit_id " +
+        "ELSE excluded.git_commit_id " +
+        "END",
+      fileName, commitId, filePath, checksum, lastSeenAt.toString()
+    );
   }
 
   @Override
   public Optional<SqlFile> findById(int id) {
-    var list = jdbc.query("SELECT * FROM sql_file WHERE id=?", mapper, id);
+    List<SqlFile> list = jdbc.query("SELECT * FROM sql_file WHERE id=?", mapper, id);
     return list.isEmpty() ? Optional.empty() : Optional.of(list.get(0));
   }
 
@@ -57,7 +59,7 @@ public class SqlFileRepositoryJdbc implements SqlFileRepository {
       status == SqlFile.Status.SUCCESS ? 1 : 0, status.name(), id);
   }
 
-  private static final RowMapper<SqlFile> mapper = new RowMapper<>() {
+  private static final RowMapper<SqlFile> mapper = new RowMapper<SqlFile>() {
     @Override
     public SqlFile mapRow(ResultSet rs, int rowNum) throws SQLException {
       return new SqlFile(
@@ -66,7 +68,7 @@ public class SqlFileRepositoryJdbc implements SqlFileRepository {
         rs.getString("git_commit_id"),
         rs.getString("file_path"),
         rs.getString("checksum"),
-        Instant.parse(rs.getString("last_seen_at")),
+        CompatTime.parseInstant(rs.getString("last_seen_at")),
         rs.getInt("executed") == 1,
         SqlFile.Status.valueOf(rs.getString("last_status"))
       );

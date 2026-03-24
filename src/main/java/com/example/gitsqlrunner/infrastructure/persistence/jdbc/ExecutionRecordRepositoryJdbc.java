@@ -2,6 +2,8 @@ package com.example.gitsqlrunner.infrastructure.persistence.jdbc;
 
 import com.example.gitsqlrunner.domain.sql.ExecutionRecord;
 import com.example.gitsqlrunner.domain.sql.ExecutionRecordRepository;
+import com.example.gitsqlrunner.support.CompatText;
+import com.example.gitsqlrunner.support.CompatTime;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Repository;
@@ -41,21 +43,21 @@ public class ExecutionRecordRepositoryJdbc implements ExecutionRecordRepository 
 
   @Override
   public List<ExecutionRecord> findAll(String status) {
-    if (status == null || status.isBlank()) {
+    if (CompatText.isBlank(status)) {
       return jdbc.query("SELECT * FROM execution_record ORDER BY id DESC", mapper);
     }
     return jdbc.query("SELECT * FROM execution_record WHERE status=? ORDER BY id DESC", mapper, status);
   }
 
-  private static final RowMapper<ExecutionRecord> mapper = new RowMapper<>() {
+  private static final RowMapper<ExecutionRecord> mapper = new RowMapper<ExecutionRecord>() {
     @Override
     public ExecutionRecord mapRow(ResultSet rs, int rowNum) throws SQLException {
       return new ExecutionRecord(
         rs.getInt("id"),
         rs.getInt("sql_file_id"),
         ExecutionRecord.Status.valueOf(rs.getString("status")),
-        Instant.parse(rs.getString("start_time")),
-        rs.getString("end_time") == null ? null : Instant.parse(rs.getString("end_time")),
+        CompatTime.parseInstant(rs.getString("start_time")),
+        CompatTime.parseInstant(rs.getString("end_time")),
         rs.getString("error_message"),
         ExecutionRecord.ExecutedBy.valueOf(rs.getString("executed_by")),
         rs.getInt("retry_count"),

@@ -2,15 +2,13 @@ package com.example.gitsqlrunner.infrastructure.persistence.jdbc;
 
 import com.example.gitsqlrunner.domain.sql.TargetDatabase;
 import com.example.gitsqlrunner.domain.sql.TargetDatabaseRepository;
+import com.example.gitsqlrunner.support.CompatTime;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Repository;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.time.Instant;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
 
@@ -80,16 +78,7 @@ public class TargetDatabaseRepositoryJdbc implements TargetDatabaseRepository {
     rs.getString("password"),
     rs.getString("jdbc_params"),
     rs.getInt("enabled") == 1,
-    parseTime(rs.getString("created_at")),
-    parseTime(rs.getString("updated_at"))
+    CompatTime.parseInstant(rs.getString("created_at")),
+    CompatTime.parseInstant(rs.getString("updated_at"))
   );
-
-  private static Instant parseTime(String raw) {
-    if (raw == null || raw.isBlank()) return null;
-    try {
-      return Instant.parse(raw);
-    } catch (Exception ignored) {
-      return LocalDateTime.parse(raw.replace(' ', 'T')).toInstant(ZoneOffset.UTC);
-    }
-  }
 }
