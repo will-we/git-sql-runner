@@ -3,9 +3,9 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>com.example</groupId>
   <artifactId>git-sql-runner</artifactId>
-  <version>0.1.0-SNAPSHOT</version>
+  <version>1.0.0</version>
   <name>git-sql-runner</name>
-  <description>Git-based SQL automation runner (DDD + jQuery/Tailwind)</description>
+  <description>Git-based SQL automation runner</description>
 
   <properties>
     <java.version>17</java.version>

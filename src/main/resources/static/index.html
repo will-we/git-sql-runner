@@ -4,10 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Git SQL Runner</title>
-  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
-  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <link href="./vendor/tailwind-2.2.19.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="./vendor/atom-one-dark.min.css">
+  <script src="./vendor/jquery-3.6.0.min.js"></script>
+  <script src="./vendor/highlight.min.js"></script>
 </head>
 <body class="bg-gray-100">
   <aside class="fixed left-0 top-0 h-screen w-56 bg-white border-r border-gray-200">
@@ -670,7 +670,7 @@
     }
     $(function() {
       if (!window.jQuery) {
-        setStatus('jQuery 加载失败，请检查网络或使用本地镜像', 'warn');
+        setStatus('jQuery 加载失败，请检查本地静态资源是否完整', 'warn');
       }
       loadRecords();
       switchView('files');
@@ -888,9 +888,10 @@
         var id = $(this).data('id');
         var w = window.open('', '_blank');
         if (!w) { alert('浏览器阻止了弹窗'); return; }
+        var origin = window.location.origin;
         w.document.write('<!doctype html><html><head><meta charset="UTF-8"><title>预览</title>'
-          + '<link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">'
-          + '<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">'
+          + '<link href="' + origin + '/vendor/tailwind-2.2.19.min.css" rel="stylesheet">'
+          + '<link rel="stylesheet" href="' + origin + '/vendor/atom-one-dark.min.css">'
           + '</head><body class="bg-gray-900 text-gray-100">'
           + '<div class="max-w-4xl mx-auto py-6">'
           + '<h1 id="pv-title" class="text-xl font-bold mb-2"></h1>'
@@ -905,7 +906,7 @@
           var code = w.document.getElementById('pv-code');
           code.textContent = data.content || '';
           var s = w.document.createElement('script');
-          s.src = 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js';
+          s.src = origin + '/vendor/highlight.min.js';
           s.onload = function(){ if (w.hljs) { w.hljs.highlightAll(); } };
           w.document.head.appendChild(s);
         }).fail(function(jq){
