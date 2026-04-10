@@ -31,16 +31,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
+        uses: github/codeql-action/init@v4
         with:
           languages: ${{ matrix.language }}
+          config-file: ./.github/codeql/codeql-config.yml
       - name: Setup Java
         uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
           cache: maven
-      - name: Autobuild
-        uses: github/codeql-action/autobuild@v4
+      - name: Build for CodeQL
+        run: mvn -B -ntp -Pjava17 clean compile -DskipTests
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v4

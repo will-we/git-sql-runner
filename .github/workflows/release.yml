@@ -47,12 +47,45 @@ jobs:
           set -euo pipefail
           CURRENT_TAG="${GITHUB_REF_NAME}"
           PREVIOUS_TAG="$(git tag --sort=-creatordate | grep -v "^${CURRENT_TAG}$" | head -n 1 || true)"
+          if [ -n "${PREVIOUS_TAG}" ]; then
+            RANGE="${PREVIOUS_TAG}..${CURRENT_TAG}"
+          else
+            RANGE="${CURRENT_TAG}"
+          fi
+          COMMITS="$(git log --pretty=format:'%s|%h' "${RANGE}" || true)"
+          section() {
+            local title="$1"
+            local pattern="$2"
+            local lines
+            lines="$(echo "${COMMITS}" | grep -E "${pattern}" || true)"
+            if [ -n "${lines}" ]; then
+              echo "### ${title}"
+              echo "${lines}" | while IFS='|' read -r subject hash; do
+                if [ -n "${subject}" ] && [ -n "${hash}" ]; then
+                  echo "- ${subject} (${hash})"
+                fi
+              done
+              echo
+            fi
+          }
           {
+            echo "## Changelog"
+            echo
+            section "Features" '^(feat)(\(.+\))?:'
+            section "Fixes" '^(fix)(\(.+\))?:'
+            section "Refactors" '^(refactor)(\(.+\))?:'
+            section "Docs" '^(docs)(\(.+\))?:'
+            section "Chores" '^(chore)(\(.+\))?:'
+            section "Others" '^((build|ci|perf|test|style|revert)(\(.+\))?:|[^:]+$)'
             echo "## Git Commits"
-            if [ -n "${PREVIOUS_TAG}" ]; then
-              git log --pretty=format:'- %s (%h)' "${PREVIOUS_TAG}..${CURRENT_TAG}" || true
+            if [ -n "${COMMITS}" ]; then
+              echo "${COMMITS}" | while IFS='|' read -r subject hash; do
+                if [ -n "${subject}" ] && [ -n "${hash}" ]; then
+                  echo "- ${subject} (${hash})"
+                fi
+              done
             else
-              git log --pretty=format:'- %s (%h)' "${CURRENT_TAG}" || true
+              echo "- No commits found in range"
             fi
             echo
             echo
