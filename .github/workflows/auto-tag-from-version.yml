@@ -46,7 +46,10 @@ jobs:
             exit 0
           fi
           if [ "${GITHUB_EVENT_NAME}" = "push" ] && git rev-parse HEAD~1 >/dev/null 2>&1; then
-            PREVIOUS_VERSION="$(git show HEAD~1:pom.xml | python3 -c 'import sys, xml.etree.ElementTree as ET; t=sys.stdin.read().strip(); print((lambda r: next(((c.text or \"\").strip() for c in list(r) if c.tag.split(\"}\")[-1]==\"version\"), \"\"))(ET.fromstring(t)) if t else \"\")')"
+            PREVIOUS_POM="$(mktemp)"
+            git show HEAD~1:pom.xml > "${PREVIOUS_POM}"
+            PREVIOUS_VERSION="$(mvn -q -DforceStdout -f "${PREVIOUS_POM}" help:evaluate -Dexpression=project.version | tail -n 1 | tr -d '\r')"
+            rm -f "${PREVIOUS_POM}"
             if [ "${PREVIOUS_VERSION}" = "${VERSION}" ]; then
               echo "project.version unchanged: ${VERSION}"
               echo "should_tag=false" >> "${GITHUB_OUTPUT}"
