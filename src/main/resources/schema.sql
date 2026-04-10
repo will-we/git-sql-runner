@@ -43,7 +43,7 @@ CREATE TABLE IF NOT EXISTS target_database(
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
-ALTER TABLE target_database ADD COLUMN IF NOT EXISTS driver_class_name TEXT;
-ALTER TABLE target_database ADD COLUMN IF NOT EXISTS driver_jar_path TEXT;
+ALTER TABLE target_database ADD COLUMN driver_class_name TEXT;
+ALTER TABLE target_database ADD COLUMN driver_jar_path TEXT;
 CREATE INDEX IF NOT EXISTS idx_target_database_enabled ON target_database(enabled, target_id);
 

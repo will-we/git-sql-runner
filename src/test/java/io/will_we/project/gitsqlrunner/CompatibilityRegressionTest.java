@@ -21,6 +21,7 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -55,11 +56,16 @@ class CompatibilityRegressionTest {
 
   @Test
   void keepsApiContractsAndHomePageCompatible() throws Exception {
-    String homePage = mockMvc.perform(get("/"))
+    MvcResult homeResult = mockMvc.perform(get("/"))
+      .andExpect(status().isOk())
+      .andReturn();
+    assertEquals("index.html", homeResult.getResponse().getForwardedUrl());
+    String homePage = mockMvc.perform(get("/index.html"))
       .andExpect(status().isOk())
       .andReturn()
       .getResponse()
-      .getContentAsString();
+      .getContentAsString(StandardCharsets.UTF_8);
+    assertNotNull(homePage);
     assertTrue(homePage.contains("SQL 历史"));
     assertTrue(homePage.contains("执行记录"));
     assertTrue(homePage.contains("数据库配置"));
