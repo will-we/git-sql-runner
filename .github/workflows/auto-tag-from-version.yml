@@ -12,6 +12,7 @@ on:
 
 permissions:
   contents: write
+  actions: write
 
 jobs:
   create-version-tag:
@@ -76,3 +77,17 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git tag -a "${TAG}" -m "Release ${TAG}"
           git push origin "${TAG}"
+
+      - name: Trigger release workflow
+        if: steps.detect.outputs.should_tag == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG="${{ steps.detect.outputs.tag }}"
+          curl -sS -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/workflows/release.yml/dispatches \
+            -d "{\"ref\":\"${TAG}\"}"
