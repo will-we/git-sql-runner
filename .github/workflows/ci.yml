@@ -46,7 +46,7 @@ jobs:
         run: mvn -B -ntp -P${{ matrix.profile }} clean verify
       - name: Upload Test Reports
         if: always()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: surefire-reports-jdk${{ matrix.java }}
           path: |
@@ -55,7 +55,7 @@ jobs:
           if-no-files-found: ignore
       - name: Upload Build Artifacts
         if: success()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: app-jar-jdk${{ matrix.java }}
           path: target/*.jar
