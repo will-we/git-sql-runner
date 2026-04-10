@@ -205,6 +205,18 @@
           <input id="tdPassword" type="password" class="mt-1 w-full border rounded px-2 py-1">
         </div>
         <div class="col-span-2">
+          <label class="text-sm text-gray-600">驱动类（可选，不填按类型默认）</label>
+          <input id="tdDriverClassName" class="mt-1 w-full border rounded px-2 py-1" placeholder="例如：com.mysql.cj.jdbc.Driver">
+        </div>
+        <div class="col-span-2">
+          <label class="text-sm text-gray-600">驱动 Jar 路径（可选，可上传或手工指定）</label>
+          <div class="mt-1 flex items-center gap-2">
+            <input id="tdDriverJarPath" class="flex-1 border rounded px-2 py-1" placeholder="例如：D:\\drivers\\mysql-connector-j.jar">
+            <button id="tdDriverUploadBtn" type="button" class="px-3 py-1 bg-indigo-600 text-white rounded">上传驱动</button>
+            <input id="tdDriverUploadInput" type="file" accept=".jar" class="hidden">
+          </div>
+        </div>
+        <div class="col-span-2">
           <label class="text-sm text-gray-600">JDBC 参数（可选）</label>
           <input id="tdJdbcParams" class="mt-1 w-full border rounded px-2 py-1" placeholder="useSSL=false&serverTimezone=UTC">
         </div>
@@ -595,6 +607,8 @@
         targetId: ($('#tdTargetId').val() || '').trim(),
         name: ($('#tdName').val() || '').trim(),
         dbType: ($('#tdType').val() || '').trim(),
+        driverClassName: ($('#tdDriverClassName').val() || '').trim(),
+        driverJarPath: ($('#tdDriverJarPath').val() || '').trim(),
         host: ($('#tdHost').val() || '').trim(),
         port: Number($('#tdPort').val() || 0),
         databaseName: ($('#tdDatabaseName').val() || '').trim(),
@@ -608,6 +622,8 @@
       $('#tdTargetId').val(item ? (item.targetId || '') : '');
       $('#tdName').val(item ? (item.name || '') : '');
       $('#tdType').val(item ? (item.dbType || 'postgresql') : 'postgresql');
+      $('#tdDriverClassName').val(item ? (item.driverClassName || '') : '');
+      $('#tdDriverJarPath').val(item ? (item.driverJarPath || '') : '');
       $('#tdHost').val(item ? (item.host || '') : '127.0.0.1');
       $('#tdPort').val(item ? (item.port || '') : '');
       $('#tdDatabaseName').val(item ? (item.databaseName || '') : '');
@@ -812,6 +828,30 @@
       });
       $('#targetDbModalClose, #targetDbCancelBtn').on('click', function() {
         closeTargetDbModal();
+      });
+      $('#tdDriverUploadBtn').on('click', function() {
+        $('#tdDriverUploadInput').click();
+      });
+      $('#tdDriverUploadInput').on('change', function() {
+        var f = this.files && this.files[0];
+        if (!f) return;
+        var fd = new FormData();
+        fd.append('file', f);
+        $.ajax({
+          url: '/api/drivers/upload',
+          method: 'POST',
+          data: fd,
+          processData: false,
+          contentType: false
+        }).done(function(resp){
+          var p = resp && resp.path ? String(resp.path) : '';
+          $('#tdDriverJarPath').val(p);
+          setStatus('驱动上传成功：' + (resp.fileName || ''), 'ok');
+        }).fail(function(jq){
+          handleAjaxFail(jq, '驱动上传失败');
+        }).always(function(){
+          $('#tdDriverUploadInput').val('');
+        });
       });
       $('#targetDbTestBtn').on('click', function() {
         var payload = collectTargetDbForm();

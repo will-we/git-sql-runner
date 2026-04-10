@@ -31,6 +31,8 @@ CREATE TABLE IF NOT EXISTS target_database(
   target_id TEXT NOT NULL UNIQUE,
   name TEXT NOT NULL,
   db_type TEXT NOT NULL CHECK(db_type IN ('mysql','postgresql')),
+  driver_class_name TEXT,
+  driver_jar_path TEXT,
   host TEXT NOT NULL,
   port INTEGER NOT NULL,
   database_name TEXT NOT NULL,
@@ -41,5 +43,7 @@ CREATE TABLE IF NOT EXISTS target_database(
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+ALTER TABLE target_database ADD COLUMN IF NOT EXISTS driver_class_name TEXT;
+ALTER TABLE target_database ADD COLUMN IF NOT EXISTS driver_jar_path TEXT;
 CREATE INDEX IF NOT EXISTS idx_target_database_enabled ON target_database(enabled, target_id);
 
