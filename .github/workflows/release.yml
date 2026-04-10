@@ -41,6 +41,28 @@ jobs:
         uses: actions/attest-build-provenance@v2
         with:
           subject-path: target/*.jar
+      - name: Build Full Changelog
+        shell: bash
+        run: |
+          set -euo pipefail
+          CURRENT_TAG="${GITHUB_REF_NAME}"
+          PREVIOUS_TAG="$(git tag --sort=-creatordate | grep -v "^${CURRENT_TAG}$" | head -n 1 || true)"
+          {
+            echo "## Git Commits"
+            if [ -n "${PREVIOUS_TAG}" ]; then
+              git log --pretty=format:'- %s (%h)' "${PREVIOUS_TAG}..${CURRENT_TAG}" || true
+            else
+              git log --pretty=format:'- %s (%h)' "${CURRENT_TAG}" || true
+            fi
+            echo
+            echo
+            echo "## Full Changelog"
+            if [ -n "${PREVIOUS_TAG}" ]; then
+              echo "https://github.com/${GITHUB_REPOSITORY}/compare/${PREVIOUS_TAG}...${CURRENT_TAG}"
+            else
+              echo "https://github.com/${GITHUB_REPOSITORY}/commits/${CURRENT_TAG}"
+            fi
+          } > RELEASE_CHANGELOG.md
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -48,3 +70,5 @@ jobs:
             target/*.jar
             target/*.jar.sha256
           generate_release_notes: true
+          append_body: true
+          body_path: RELEASE_CHANGELOG.md
