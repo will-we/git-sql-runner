@@ -1,0 +1,75 @@
+name: Auto Tag From Maven Version
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - develop
+    paths:
+      - pom.xml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  create-version-tag:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Setup Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+
+      - name: Detect tag target
+        id: detect
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="$(mvn -q -DforceStdout help:evaluate -Dexpression=project.version | tail -n 1 | tr -d '\r')"
+          if [ -z "${VERSION}" ]; then
+            echo "project.version is empty"
+            exit 1
+          fi
+          if [[ "${VERSION}" == *-SNAPSHOT ]]; then
+            echo "skip snapshot version: ${VERSION}"
+            echo "should_tag=false" >> "${GITHUB_OUTPUT}"
+            exit 0
+          fi
+          if [ "${GITHUB_EVENT_NAME}" = "push" ] && git rev-parse HEAD~1 >/dev/null 2>&1; then
+            PREVIOUS_VERSION="$(git show HEAD~1:pom.xml | python3 -c 'import sys, xml.etree.ElementTree as ET; t=sys.stdin.read().strip(); print((lambda r: next(((c.text or \"\").strip() for c in list(r) if c.tag.split(\"}\")[-1]==\"version\"), \"\"))(ET.fromstring(t)) if t else \"\")')"
+            if [ "${PREVIOUS_VERSION}" = "${VERSION}" ]; then
+              echo "project.version unchanged: ${VERSION}"
+              echo "should_tag=false" >> "${GITHUB_OUTPUT}"
+              exit 0
+            fi
+          fi
+          TAG="v${VERSION}"
+          if git rev-parse "${TAG}" >/dev/null 2>&1; then
+            echo "tag already exists: ${TAG}"
+            echo "should_tag=false" >> "${GITHUB_OUTPUT}"
+            exit 0
+          fi
+          echo "tag to create: ${TAG}"
+          echo "should_tag=true" >> "${GITHUB_OUTPUT}"
+          echo "tag=${TAG}" >> "${GITHUB_OUTPUT}"
+
+      - name: Create and push tag
+        if: steps.detect.outputs.should_tag == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="${{ steps.detect.outputs.tag }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "${TAG}" -m "Release ${TAG}"
+          git push origin "${TAG}"

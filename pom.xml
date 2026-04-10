@@ -3,7 +3,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>io.will-well.project</groupId>
   <artifactId>git-sql-runner</artifactId>
-  <version>1.0.0</version>
+  <version>1.0.3</version>
   <name>git-sql-runner</name>
   <description>Git-based SQL automation runner</description>
 
