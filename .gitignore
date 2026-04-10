@@ -1,4 +1,6 @@
 target/
+# 如果需要保留某些子目录，可添加例外
+!src/main/**/target/
 build/
 out/
 bin/
@@ -16,10 +18,11 @@ Thumbs.db
 desktop.ini
 
 sql/
+!src/main/**/sql/
 
 logs/
 *.log
-*.pid
+*.pidgir
 *.gz
 
 .env
